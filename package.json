@@ -1,0 +1,21 @@
+{
+  "name": "barrio-en-pie",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "map:export": "tsx scripts/export-saavedra.ts"
+  },
+  "devDependencies": {
+    "@types/three": "^0.185.1",
+    "tsx": "^4.19.3",
+    "typescript": "~5.7.2",
+    "vite": "^6.2.0"
+  },
+  "dependencies": {
+    "three": "^0.174.0"
+  }
+}
