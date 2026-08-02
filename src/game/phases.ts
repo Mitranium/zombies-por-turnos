@@ -36,6 +36,7 @@ import { refreshPlayerSquadLevels } from './state';
 
 export type GameListener = (state: GameState) => void;
 export const SPECIAL_CHARGE_REQUIRED = 2;
+export const SCREAMER_SUMMON_CHANCE = 0.2;
 
 type AnimAction = { type: 'hit' | 'heal'; attackerId: string; targetId: string } | null;
 
@@ -90,6 +91,16 @@ export function openSquadMenu(state: GameState): void {
 }
 
 export function closeSquadMenu(state: GameState): void {
+  state.phase = 'title';
+  emit(state);
+}
+
+export function openWikiMenu(state: GameState): void {
+  state.phase = 'wiki';
+  emit(state);
+}
+
+export function closeWikiMenu(state: GameState): void {
   state.phase = 'title';
   emit(state);
 }
@@ -409,7 +420,7 @@ function runEnemyTurn(state: GameState, unit: Unit): AnimAction {
   shuffleUnitOnGrid(unit, allies);
   emit(state);
 
-  if (unit.role === 'screamer' && Math.random() < 0.3) {
+  if (unit.role === 'screamer' && Math.random() < SCREAMER_SUMMON_CHANCE) {
     const summoned = summonShambler(`wave_${state.phaseNumber}`);
     const tier = Math.floor((state.phaseNumber - 1) / 3);
     summoned.maxHp = Math.round(summoned.maxHp * (1 + tier * 0.18));

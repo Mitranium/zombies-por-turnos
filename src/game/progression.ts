@@ -21,6 +21,10 @@ const XP_BY_ENEMY: Partial<Record<UnitRole, number>> = {
 
 export const PLAYER_ROLES: PlayerRole[] = ['athlete', 'criminal', 'medic'];
 
+export type EnemyRole = 'shambler' | 'screamer' | 'ripper';
+
+export const ENEMY_ROLES: EnemyRole[] = ['shambler', 'screamer', 'ripper'];
+
 export function createDefaultProfile(): PlayerProfile {
   return {
     xp: 0,

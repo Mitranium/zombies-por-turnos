@@ -6,9 +6,11 @@ import type { CombatScene } from '../combat/CombatScene';
 import { t } from '../i18n/strings';
 import {
   closeSquadMenu,
+  closeWikiMenu,
   confirmDeployment,
   levelUpCharacter,
   openSquadMenu,
+  openWikiMenu,
   restartGame,
   selectCombatAction,
   selectCombatTarget,
@@ -18,7 +20,9 @@ import {
   startGame,
   startNextRound,
 } from '../game/phases';
-import { canLevelUp, getLevelBonuses, levelUpCost, MAX_LEVEL, PLAYER_ROLES } from '../game/progression';
+import { canLevelUp, ENEMY_ROLES, getLevelBonuses, levelUpCost, MAX_LEVEL, PLAYER_ROLES, xpForKill } from '../game/progression';
+import { getBaseUnitStats } from '../game/state';
+import { attackDiceLabel } from './combatActions';
 import { playSfx, unlockAudio } from '../audio/sfx';
 import { CombatKeyboardController, type CombatKey } from './combatKeyboard';
 
@@ -48,6 +52,10 @@ export class UIManager {
       case 'squad':
         this.keyboard.reset();
         this.renderSquad(state, onStateChange);
+        break;
+      case 'wiki':
+        this.keyboard.reset();
+        this.renderWiki(state, onStateChange);
         break;
       case 'roundbreak':
         this.keyboard.reset();
@@ -110,6 +118,12 @@ export class UIManager {
       }
       if (state.phase === 'squad') {
         closeSquadMenu(state);
+        playSfx('click');
+        onStateChange(state);
+        return true;
+      }
+      if (state.phase === 'wiki') {
+        closeWikiMenu(state);
         playSfx('click');
         onStateChange(state);
         return true;
@@ -230,6 +244,12 @@ export class UIManager {
     squadPanel.appendChild(this.el('span', 'title-squad-cta', `${t('title.manageSquad', state.lang)} →`));
     actions.appendChild(squadPanel);
 
+    actions.appendChild(this.btn(
+      `📖  ${t('title.openWiki', state.lang)}`,
+      () => { openWikiMenu(state); onStateChange(state); },
+      'btn title-wiki-btn',
+    ));
+
     const playBtn = this.btn(`▶  ${t('btn.start', state.lang)}`, () => { startGame(state); onStateChange(state); }, 'btn btn-go title-play');
     actions.appendChild(playBtn);
     actions.appendChild(this.el('p', 'title-hint', t('title.playHint', state.lang)));
@@ -295,6 +315,45 @@ export class UIManager {
     }
     panel.appendChild(list);
     panel.appendChild(this.btn(t('squad.back', state.lang), () => { closeSquadMenu(state); onStateChange(state); }, 'btn btn-go'));
+    screen.appendChild(panel);
+    this.root.appendChild(screen);
+  }
+
+  private renderWiki(state: GameState, onStateChange: (s: GameState) => void): void {
+    const screen = this.el('div', 'title-screen squad-screen');
+    screen.appendChild(this.el('div', 'title-vignette'));
+    screen.appendChild(this.el('div', 'title-scanlines'));
+
+    const panel = this.el('div', 'squad-menu-panel wiki-menu-panel');
+    panel.appendChild(this.el('p', 'title-eyebrow', t('wiki.eyebrow', state.lang)));
+    panel.appendChild(this.el('h1', 'squad-menu-title', t('wiki.title', state.lang)));
+    panel.appendChild(this.el('p', 'panel-body squad-menu-hint', t('wiki.hint', state.lang)));
+
+    const list = this.el('div', 'squad-list wiki-list');
+    for (const role of ENEMY_ROLES) {
+      const theme = ROLE_THEME[role];
+      const stats = getBaseUnitStats(role);
+      const card = this.el('div', 'squad-card wiki-card');
+      card.style.setProperty('--role-color', theme.css);
+      card.appendChild(this.el('span', 'squad-card-glyph', theme.glyph));
+      const info = this.el('div', 'squad-card-info');
+      info.appendChild(this.el('strong', 'squad-card-name', t(`unit.${role}`, state.lang)));
+      info.appendChild(this.el(
+        'span',
+        'squad-card-level',
+        t('wiki.stats', state.lang, {
+          hp: stats.hp,
+          speed: stats.speed,
+          dice: attackDiceLabel(role),
+          xp: xpForKill(role),
+        }),
+      ));
+      info.appendChild(this.el('p', 'wiki-card-body', t(`wiki.${role}.body`, state.lang)));
+      card.appendChild(info);
+      list.appendChild(card);
+    }
+    panel.appendChild(list);
+    panel.appendChild(this.btn(t('wiki.back', state.lang), () => { closeWikiMenu(state); onStateChange(state); }, 'btn btn-go'));
     screen.appendChild(panel);
     this.root.appendChild(screen);
   }

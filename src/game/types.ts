@@ -5,6 +5,7 @@ export type Lang = 'en' | 'es';
 export type GamePhase =
   | 'title'
   | 'squad'
+  | 'wiki'
   | 'deployment'
   | 'combat'
   | 'roundbreak'

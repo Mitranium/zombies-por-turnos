@@ -51,6 +51,7 @@ html, body, #app {
 #ui-root .title-squad-panel,
 #ui-root .squad-menu-panel,
 #ui-root .squad-menu-panel .btn,
+#ui-root .wiki-menu-panel,
 #ui-root .combat-action {
   pointer-events: auto;
 }
@@ -803,6 +804,35 @@ html, body, #app {
   font-size: 0.72rem;
   font-weight: 900;
   color: var(--gold);
+}
+
+.title-wiki-btn {
+  width: 100%;
+  max-width: 360px;
+  margin-bottom: 0.5rem;
+  border-color: #4a5a8a;
+  background: rgba(14, 16, 28, 0.85);
+}
+
+.title-wiki-btn:hover {
+  border-color: #7b8cff;
+  background: rgba(22, 26, 42, 0.95);
+}
+
+.wiki-menu-panel {
+  width: min(560px, 92vw);
+}
+
+.wiki-card {
+  align-items: flex-start;
+}
+
+.wiki-card-body {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #b8c0b4;
+  text-align: left;
 }
 
 .combat-actions {

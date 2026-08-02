@@ -12,6 +12,7 @@ const STRINGS: StringTable = {
   'title.playHint': { en: 'Enter to play', es: 'Enter para jugar' },
   'title.squadPreview': { en: 'Your squad', es: 'Tu escuadrón' },
   'title.manageSquad': { en: 'Manage squad', es: 'Gestionar escuadrón' },
+  'title.openWiki': { en: 'Zombie wiki', es: 'Wiki de zombis' },
   'title.stat.kills': { en: 'Kills', es: 'Bajas' },
   'btn.start': { en: 'Start Demo', es: 'Iniciar demo' },
   'btn.restart': { en: 'Restart', es: 'Reiniciar' },
@@ -61,6 +62,27 @@ const STRINGS: StringTable = {
   'squad.levelUp': { en: 'Level up', es: 'Subir nivel' },
   'squad.maxed': { en: 'MAX', es: 'MÁX' },
   'squad.back': { en: 'Back', es: 'Volver' },
+
+  'wiki.eyebrow': { en: 'FIELD GUIDE', es: 'GUÍA DE CAMPO' },
+  'wiki.title': { en: 'Zombie wiki', es: 'Wiki de zombis' },
+  'wiki.hint': {
+    en: 'Each enemy behaves differently. Kill screamers early to stop reinforcements.',
+    es: 'Cada enemigo se comporta distinto. Matá a los gritones pronto para frenar refuerzos.',
+  },
+  'wiki.back': { en: 'Back', es: 'Volver' },
+  'wiki.stats': { en: '{hp} HP · SPD {speed} · {dice} · +{xp} XP', es: '{hp} PV · VEL {speed} · {dice} · +{xp} XP' },
+  'wiki.shambler.body': {
+    en: 'Slow grunt. Attacks whoever is closest on the hex grid. Common from round 1.',
+    es: 'Zombi lento. Ataca al superviviente más cercano en la grilla. Común desde la ronda 1.',
+  },
+  'wiki.screamer.body': {
+    en: 'Stays in the back row. Each turn, 20% chance to call a shambler instead of attacking. Appears from round 2.',
+    es: 'Se queda en la retaguardia. En su turno, 20% de probabilidad de invocar un tambaleante en vez de atacar. Aparece desde la ronda 2.',
+  },
+  'wiki.ripper.body': {
+    en: 'Very fast. Prefers back-row targets and hits hard. Usually the last enemy from round 3 onward.',
+    es: 'Muy rápido. Prefiere objetivos en la retaguardia y pega fuerte. Suele ser el último enemigo desde la ronda 3.',
+  },
 
   'combat.playerTurn': { en: 'Your turn', es: 'Tu turno' },
   'combat.enemyTurn': { en: 'Enemy turn', es: 'Turno enemigo' },

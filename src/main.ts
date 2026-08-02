@@ -46,7 +46,7 @@ function refresh(): void {
     combatScene.syncCombat(state.combat, state.lang);
   } else if (state.phase === 'deployment' && state.deployment) {
     combatScene.syncDeployment(state.deployment, state.lang, state.deployment.selectedUnitId);
-  } else if (state.phase === 'title' || state.phase === 'squad') {
+  } else if (state.phase === 'title' || state.phase === 'squad' || state.phase === 'wiki') {
     combatScene.syncTitlePreview(getPlayerSquad(state).members, state.lang);
   } else {
     combatScene.clearBattlefield();
