@@ -9,6 +9,21 @@ export interface ActionCardInfo {
   icon: string;
 }
 
+export interface RoleTheme {
+  hex: number;
+  css: string;
+  glyph: string;
+}
+
+export const ROLE_THEME: Record<UnitRole, RoleTheme> = {
+  athlete: { hex: 0xd4a017, css: '#d4a017', glyph: '🏃' },
+  medic: { hex: 0x4a9e8c, css: '#4a9e8c', glyph: '⚕' },
+  criminal: { hex: 0xc0392b, css: '#c0392b', glyph: '🔪' },
+  shambler: { hex: 0x4a7a3a, css: '#4a7a3a', glyph: '🧟' },
+  screamer: { hex: 0xb8860b, css: '#b8860b', glyph: '📣' },
+  ripper: { hex: 0x9b2c6a, css: '#9b2c6a', glyph: '🗡' },
+};
+
 export function attackDiceLabel(role: UnitRole): string {
   return diceLabelForRole(role, false);
 }
@@ -22,14 +37,10 @@ export function getActionCard(
   role: UnitRole,
   action: 'attack' | 'special',
   lang: Lang,
-  powerMult = 1,
 ): ActionCardInfo {
   const dice = action === 'attack' ? attackDiceLabel(role) : specialDiceLabel(role);
   const title = t(`combat.${action}.title.${role}`, lang);
-  let body = t(`combat.${action}.body.${role}`, lang);
-  if (action === 'attack' && powerMult > 1) {
-    body += ` ${t('combat.powerBonus', lang, { pct: Math.round((powerMult - 1) * 100) })}`;
-  }
+  const body = t(`combat.${action}.body.${role}`, lang);
   const icons: Record<UnitRole, { attack: string; special: string }> = {
     athlete: { attack: '⚔', special: '💥' },
     medic: { attack: '💉', special: '🩹' },
@@ -37,7 +48,6 @@ export function getActionCard(
     shambler: { attack: '✊', special: '✊' },
     screamer: { attack: '✊', special: '📢' },
     ripper: { attack: '✊', special: '✊' },
-    rival: { attack: '⚔', special: '⚔' },
   };
   return { dice, title, body, icon: icons[role][action] };
 }

@@ -1,17 +1,16 @@
 {
-  "name": "barrio-en-pie",
+  "name": "zombies-por-turnos",
   "private": true,
   "version": "0.1.0",
+  "description": "Demo de combate por turnos contra oleadas de zombis.",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview",
-    "map:export": "tsx scripts/export-saavedra.ts"
+    "preview": "vite preview"
   },
   "devDependencies": {
     "@types/three": "^0.185.1",
-    "tsx": "^4.19.3",
     "typescript": "~5.7.2",
     "vite": "^6.2.0"
   },

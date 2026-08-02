@@ -20,7 +20,6 @@ const ROLE_DICE: Record<UnitRole, DiceConfig> = {
   shambler: { count: 1, sides: 6, bonus: 0 },
   screamer: { count: 1, sides: 4, bonus: 0 },
   ripper: { count: 1, sides: 10, bonus: 0 },
-  rival: { count: 1, sides: 6, bonus: 0 },
 };
 
 const SPECIAL_DICE: Partial<Record<UnitRole, DiceConfig>> = {

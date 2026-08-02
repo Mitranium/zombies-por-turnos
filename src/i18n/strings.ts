@@ -3,24 +3,26 @@ import type { Lang } from '../game/types';
 type StringTable = Record<string, { en: string; es: string }>;
 
 const STRINGS: StringTable = {
-  'game.title': { en: 'Barrio en Pie', es: 'Barrio en Pie' },
+  'game.title': { en: 'Zombies por Turnos', es: 'Zombies por Turnos' },
+  'game.eyebrow': { en: 'DEMO · TURN-BASED COMBAT', es: 'DEMO · COMBATE POR TURNOS' },
   'game.subtitle': {
-    en: 'Pulp survival in Saavedra, Buenos Aires. Claim the barrio. Last squad standing.',
-    es: 'Supervivencia pulp en Saavedra, Buenos Aires. Conquistá el barrio. Último en pie.',
+    en: 'Survive the waves. Earn XP. Level up your squad.',
+    es: 'Sobreviví las oleadas. Ganá XP. Mejorá tu escuadrón.',
   },
-  'btn.start': { en: 'Start Run', es: 'Iniciar partida' },
-  'btn.confirm': { en: 'Confirm Phase', es: 'Confirmar fase' },
-  'btn.next': { en: 'Next', es: 'Siguiente' },
+  'title.playHint': { en: 'Enter to play', es: 'Enter para jugar' },
+  'title.squadPreview': { en: 'Your squad', es: 'Tu escuadrón' },
+  'title.manageSquad': { en: 'Manage squad', es: 'Gestionar escuadrón' },
+  'title.stat.kills': { en: 'Kills', es: 'Bajas' },
+  'btn.start': { en: 'Start Demo', es: 'Iniciar demo' },
   'btn.restart': { en: 'Restart', es: 'Reiniciar' },
   'btn.attack': { en: 'Attack', es: 'Atacar' },
   'btn.special': { en: 'Special', es: 'Especial' },
-  'btn.endTurn': { en: 'End Turn', es: 'Fin turno' },
+  'combat.special.ready': { en: 'READY', es: 'LISTA' },
+  'combat.special.basic': { en: 'BASICS', es: 'BÁSICOS' },
   'lang.en': { en: 'English', es: 'Inglés' },
   'lang.es': { en: 'Español', es: 'Español' },
 
   'squad.player': { en: 'Your Squad', es: 'Tu escuadrón' },
-  'squad.rival1': { en: 'Los del Conurbano', es: 'Los del Conurbano' },
-  'squad.rival2': { en: 'Punteros de Villa', es: 'Punteros de Villa' },
 
   'unit.athlete': { en: 'Athlete', es: 'Deportista' },
   'unit.medic': { en: 'Med Student', es: 'Estudiante médico' },
@@ -28,66 +30,53 @@ const STRINGS: StringTable = {
   'unit.shambler': { en: 'Shambler', es: 'Tambaleante' },
   'unit.screamer': { en: 'Screamer', es: 'Gritón' },
   'unit.ripper': { en: 'Ripper', es: 'Destripador' },
-  'unit.rivalA': { en: 'Raider', es: 'Asaltante' },
-  'unit.rivalB': { en: 'Brute', es: 'Bruto' },
-  'unit.rivalC': { en: 'Lookout', es: 'Vigía' },
 
-  'node.street_south': { en: 'San Telmo', es: 'San Telmo' },
-  'node.street_center': { en: 'Microcentro', es: 'Microcentro' },
-  'node.street_north': { en: 'Recoleta', es: 'Recoleta' },
-  'node.street_east': { en: 'Puerto Madero', es: 'Puerto Madero' },
-  'node.street_west': { en: 'Almagro', es: 'Almagro' },
-  'node.mall': { en: 'Galerías Pacífico', es: 'Galerías Pacífico' },
-  'node.hospital': { en: 'Hospital Argerich', es: 'Hospital Argerich' },
-  'node.police': { en: 'Comisaría 1ª', es: 'Comisaría 1ª' },
-  'node.alley_west': { en: 'Pasaje del Humo', es: 'Pasaje del Humo' },
-  'node.alley_east': { en: 'Caminito', es: 'Caminito' },
-  'node.alley_north': { en: 'Callejón Palermo', es: 'Callejón Palermo' },
+  'round.label': { en: 'Round', es: 'Ronda' },
+  'round.cleared': { en: 'Wave cleared', es: 'Oleada eliminada' },
+  'round.survivors': { en: 'Survivors', es: 'Sobrevivientes' },
+  'round.recovered': {
+    en: 'The full squad will return restored for the next round.',
+    es: 'El equipo completo volverá restablecido en la próxima ronda.',
+  },
+  'round.next': { en: 'Start next wave', es: 'Iniciar siguiente oleada' },
+  'round.reached': { en: 'Round reached:', es: 'Ronda alcanzada:' },
 
-  'hud.phase': { en: 'Phase', es: 'Fase' },
-  'hud.power': { en: 'Power', es: 'Poder' },
-  'hud.rivals': { en: 'Rivals alive', es: 'Rivales vivos' },
-  'hud.pois': { en: 'POIs held', es: 'POIs controlados' },
-  'hud.hp': { en: 'HP', es: 'PV' },
+  'deployment.title': { en: 'Position your squad', es: 'Posicioná tu escuadrón' },
+  'deployment.hint': {
+    en: 'Pick a unit, then click a hex. Zombies attack whoever is closest on the battlefield. Enter to start.',
+    es: 'Elegí un personaje y tocá un hexágono. Los zombis atacan al más cercano en el campo. Enter para empezar.',
+  },
+  'deployment.confirm': { en: 'Start round', es: 'Iniciar ronda' },
 
-  'move.title': { en: 'Your Turn', es: 'Tu turno' },
-  'move.instruction': {
-    en: 'Drag to explore Saavedra. Click a glowing node to move. Zombies at DOT Baires.',
-    es: 'Arrastrá para explorar Saavedra. Clic en un nodo brillante para moverte. Zombis en DOT Baires.',
+  'xp.label': { en: 'XP', es: 'XP' },
+  'xp.runGained': { en: 'XP this run', es: 'XP en esta partida' },
+  'xp.bestRound': { en: 'Best round', es: 'Mejor ronda' },
+  'squad.title': { en: 'Squad', es: 'Escuadrón' },
+  'squad.eyebrow': { en: 'LEVEL UP', es: 'SUBIR NIVEL' },
+  'squad.hint': {
+    en: 'Spend XP to permanently improve your characters. Earn XP by killing zombies.',
+    es: 'Gastá XP para mejorar personajes de forma permanente. Ganás XP matando zombis.',
   },
-  'move.current': { en: 'Current position', es: 'Posición actual' },
+  'squad.level': { en: 'Level', es: 'Nivel' },
+  'squad.levelUp': { en: 'Level up', es: 'Subir nivel' },
+  'squad.maxed': { en: 'MAX', es: 'MÁX' },
+  'squad.back': { en: 'Back', es: 'Volver' },
 
-  'tutorial.1.title': { en: 'Click to move', es: 'Clic para moverte' },
-  'tutorial.1.body': {
-    en: 'Each phase, drag the map to explore and click a nearby corner in Saavedra. Your squad moves instantly.',
-    es: 'Cada fase, arrastrá el mapa para explorar y hacé clic en una esquina cercana de Saavedra. Tu escuadrón se mueve al instante.',
-  },
-  'tutorial.2.title': { en: 'Claim POIs for Power', es: 'Conquistá POIs por Poder' },
-  'tutorial.2.body': {
-    en: 'Hold Galerías, Argerich or Comisaría for one phase to claim. Power boosts damage and HP.',
-    es: 'Quedate en Galerías, Argerich o Comisaría una fase para reclamar. El Poder sube daño y PV.',
-  },
-  'tutorial.3.title': { en: 'Combat is rank-based', es: 'Combate por filas' },
-  'tutorial.3.body': {
-    en: 'Encounters switch to street combat. Front ranks protect the back. Attack and Special.',
-    es: 'Los encuentros son en la calle. Las filas delanteras protegen. Atacá y usá Especial.',
-  },
-  'tutorial.4.title': { en: 'Last squad standing', es: 'Último escuadrón en pie' },
-  'tutorial.4.body': {
-    en: 'Eliminate rival squads. Zombies are hazards, not victory targets.',
-    es: 'Eliminá escuadrones rivales. Los zombis son peligro, no objetivo de victoria.',
-  },
-
-  'combat.title': { en: 'Street Fight', es: 'Pelea callejera' },
   'combat.playerTurn': { en: 'Your turn', es: 'Tu turno' },
   'combat.enemyTurn': { en: 'Enemy turn', es: 'Turno enemigo' },
-  'combat.victory': { en: 'Encounter cleared!', es: '¡Encuentro superado!' },
   'combat.selectTarget': { en: 'Select a target', es: 'Seleccioná un objetivo' },
-  'combat.selectAlly': { en: 'Select an ally to heal', es: 'Seleccioná un aliado para curar' },
   'combat.dice.ready': { en: 'Your dice', es: 'Tu dado' },
   'combat.dice.rolling': { en: 'Rolling…', es: 'Tirando…' },
+  'combat.waitDice': { en: 'Wait for the dice to land', es: 'Esperá a que caigan los dados' },
+  'combat.keyboard.action': {
+    en: '← → / WASD: choose action · Enter: confirm',
+    es: '← → / WASD: elegir acción · Enter: confirmar',
+  },
+  'combat.keyboard.target': {
+    en: '← → / WASD: choose target · Enter: confirm · Esc: back',
+    es: '← → / WASD: elegir objetivo · Enter: confirmar · Esc: volver',
+  },
   'combat.dice.damage': { en: 'DMG', es: 'DAÑO' },
-  'combat.powerBonus': { en: '(+{pct}% from Power)', es: '(+{pct}% por Poder)' },
 
   'combat.attack.title.athlete': { en: 'Strike', es: 'Golpe' },
   'combat.attack.title.medic': { en: 'Syringe', es: 'Jeringa' },
@@ -113,8 +102,8 @@ const STRINGS: StringTable = {
     es: 'Golpe pesado con dados mayores. Un solo enemigo.',
   },
   'combat.special.body.medic': {
-    en: 'Heal all living allies +4 HP. No target needed.',
-    es: 'Cura +4 PV a todos los aliados vivos. No requiere objetivo.',
+    en: 'Heal all living allies +8 HP. No target needed.',
+    es: 'Cura +8 PV a todos los aliados vivos. No requiere objetivo.',
   },
   'combat.special.body.criminal': {
     en: 'Wild double swing: extra damage but you take 2 recoil.',
@@ -125,17 +114,9 @@ const STRINGS: StringTable = {
   'log.heal': { en: '{attacker} heals {target} for {amount}', es: '{attacker} cura a {target} por {amount}' },
   'log.summon': { en: 'A shambler joins the fight!', es: '¡Un tambaleante se une a la pelea!' },
   'log.self': { en: '{attacker} takes {amount} recoil', es: '{attacker} recibe {amount} de retroceso' },
-  'log.claim': { en: '{squad} claims {poi}', es: '{squad} reclama {poi}' },
-  'log.healPoi': { en: 'Hospital heals the squad', es: 'El hospital cura al escuadrón' },
 
-  'end.victory': { en: 'Barrio secured!', es: '¡Barrio asegurado!' },
-  'end.defeat': { en: 'Your squad is gone.', es: 'Tu escuadrón cayó.' },
-  'end.victorySub': { en: 'Last squad standing in Buenos Aires.', es: 'Último en pie en Buenos Aires.' },
-  'end.defeatSub': { en: 'Permadeath ends this run.', es: 'Muerte permanente. Fin de la partida.' },
-
-  'poi.mall': { en: 'DOT Baires (+2 Power)', es: 'DOT Baires (+2 Poder)' },
-  'poi.hospital': { en: 'Hospital Tierra del Fuego (+1, heal)', es: 'Hospital Tierra del Fuego (+1, cura)' },
-  'poi.police': { en: 'Comisaría 12 (+1, gun buff)', es: 'Comisaría 12 (+1, buff arma)' },
+  'end.defeat': { en: 'The squad fell.', es: 'El escuadrón cayó.' },
+  'end.defeatSub': { en: 'Game over. Try to beat your best round.', es: 'Fin de la partida. Intentá superar tu mejor ronda.' },
 };
 
 export function t(key: string, lang: Lang, params?: Record<string, string | number>): string {
@@ -148,8 +129,4 @@ export function t(key: string, lang: Lang, params?: Record<string, string | numb
     }
   }
   return text;
-}
-
-export function unitLabel(unitKey: string, lang: Lang): string {
-  return t(unitKey, lang);
 }

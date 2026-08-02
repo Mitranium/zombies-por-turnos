@@ -1,15 +1,14 @@
+import type { PlayerProfile } from './progression';
+
 export type Lang = 'en' | 'es';
 
 export type GamePhase =
   | 'title'
-  | 'tutorial'
-  | 'move'
-  | 'resolve'
+  | 'squad'
+  | 'deployment'
   | 'combat'
-  | 'gameover'
-  | 'victory';
-
-export type PoiType = 'mall' | 'hospital' | 'police' | null;
+  | 'roundbreak'
+  | 'gameover';
 
 export type UnitRole =
   | 'athlete'
@@ -17,40 +16,9 @@ export type UnitRole =
   | 'criminal'
   | 'shambler'
   | 'screamer'
-  | 'ripper'
-  | 'rival';
+  | 'ripper';
 
 export type Rank = 'front' | 'back';
-
-export interface DistrictNode {
-  id: string;
-  labelKey: string;
-  label?: { en: string; es: string };
-  x: number;
-  z: number;
-  poi: PoiType;
-  neighbors: string[];
-}
-
-export interface LandmarkPoi {
-  id: string;
-  name: string;
-  category: string;
-  x: number;
-  z: number;
-}
-
-export interface SaavedraMapData {
-  meta: {
-    name: string;
-    center: [number, number];
-    bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
-  };
-  boundary: [number, number][];
-  streetLines: [number, number][][];
-  nodes: DistrictNode[];
-  landmarks: LandmarkPoi[];
-}
 
 export interface Unit {
   id: string;
@@ -60,25 +28,23 @@ export interface Unit {
   maxHp: number;
   speed: number;
   rank: Rank;
+  gridCol: number;
+  gridRow: number;
   squadId: string;
   alive: boolean;
+  basicAttacks: number;
+}
+
+export interface DeploymentState {
+  units: Unit[];
+  selectedUnitId: string | null;
 }
 
 export interface Squad {
   id: string;
   nameKey: string;
-  nodeId: string;
-  power: number;
-  controlledPois: string[];
   members: Unit[];
   isPlayer: boolean;
-  eliminated: boolean;
-  policeBuff: boolean;
-}
-
-export interface ZombiePack {
-  nodeId: string;
-  units: Unit[];
 }
 
 export interface CombatState {
@@ -86,8 +52,6 @@ export interface CombatState {
   enemyUnits: Unit[];
   turnOrder: Unit[];
   turnIndex: number;
-  encounterType: 'zombies' | 'rival';
-  rivalSquadId: string | null;
   log: string[];
   selectedAction: 'attack' | 'special' | null;
   selectedTargetId: string | null;
@@ -99,13 +63,11 @@ export interface GameState {
   phase: GamePhase;
   lang: Lang;
   phaseNumber: number;
-  district: DistrictNode[];
   squads: Squad[];
-  zombiePacks: ZombiePack[];
-  poiOwners: Record<string, string | null>;
-  hoveredNodeId: string | null;
   combat: CombatState | null;
-  tutorialStep: number;
+  deployment: DeploymentState | null;
+  profile: PlayerProfile;
+  runXpGained: number;
   message: string;
 }
 

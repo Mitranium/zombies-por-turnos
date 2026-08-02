@@ -3,9 +3,11 @@ import { t } from '../i18n/strings';
 
 type DicePhase = 'hidden' | 'preview' | 'rolling' | 'result';
 
+// The actual dice are rendered as physically-simulated 3D objects inside
+// CombatScene (see combat/diceRig.ts). This overlay only supplies the
+// surrounding text: what you're about to roll, and the final breakdown.
 export class CombatDiceDisplay {
   private readonly el: HTMLElement;
-  private readonly rowEl: HTMLElement;
   private readonly totalEl: HTMLElement;
   private readonly damageEl: HTMLElement;
   private readonly previewEl: HTMLElement;
@@ -14,11 +16,9 @@ export class CombatDiceDisplay {
   private rollKey = '';
   private targetRoll: DiceRollResult | null = null;
   private damage = 0;
-  private faceEls: HTMLElement[] = [];
   private rollTimer = 0;
   private resultTimer = 0;
-  private tickAccum = 0;
-  private sides = 6;
+  private settleAt = 1.2;
 
   constructor() {
     this.el = document.createElement('div');
@@ -27,10 +27,6 @@ export class CombatDiceDisplay {
     this.previewEl = document.createElement('div');
     this.previewEl.className = 'dice-preview';
     this.el.appendChild(this.previewEl);
-
-    this.rowEl = document.createElement('div');
-    this.rowEl.className = 'dice-row';
-    this.el.appendChild(this.rowEl);
 
     this.totalEl = document.createElement('div');
     this.totalEl.className = 'dice-total';
@@ -55,7 +51,6 @@ export class CombatDiceDisplay {
     this.phase = 'preview';
     this.el.classList.remove('hidden', 'result');
     this.el.classList.add('preview-mode');
-    this.rowEl.style.display = 'none';
     this.totalEl.style.display = 'none';
     this.damageEl.style.display = 'none';
     this.previewEl.style.display = 'flex';
@@ -73,34 +68,14 @@ export class CombatDiceDisplay {
     this.phase = 'rolling';
     this.rollTimer = 0;
     this.resultTimer = 0;
-    this.tickAccum = 0;
-    this.sides = roll.sides;
+    this.settleAt = 1.15 + roll.rolls.length * 0.12;
 
     this.el.classList.remove('hidden', 'preview-mode');
     this.el.classList.add('rolling-mode');
     this.previewEl.style.display = 'none';
-    this.rowEl.style.display = 'flex';
     this.totalEl.style.display = 'none';
-    this.damageEl.style.display = 'none';
-
-    this.rowEl.innerHTML = '';
-    this.faceEls = [];
-    for (let i = 0; i < roll.rolls.length; i++) {
-      const face = document.createElement('div');
-      face.className = 'die-face rolling';
-      face.textContent = '?';
-      this.rowEl.appendChild(face);
-      this.faceEls.push(face);
-    }
-    if (roll.bonus > 0) {
-      const bonus = document.createElement('span');
-      bonus.className = 'die-bonus';
-      bonus.textContent = `+${roll.bonus}`;
-      this.rowEl.appendChild(bonus);
-    }
-    this.totalEl.textContent = '';
-    this.damageEl.textContent = t('combat.dice.rolling', lang);
     this.damageEl.style.display = 'block';
+    this.damageEl.textContent = t('combat.dice.rolling', lang);
   }
 
   tick(dt: number, lang: Lang): void {
@@ -109,31 +84,15 @@ export class CombatDiceDisplay {
 
     if (this.phase === 'rolling') {
       this.rollTimer += dt;
-      this.tickAccum += dt;
-      const tickEvery = Math.max(0.045, 0.14 - this.rollTimer * 0.1);
-      const settleAt = 0.5 + this.faceEls.length * 0.2;
-
-      if (this.tickAccum >= tickEvery) {
-        this.tickAccum = 0;
-        for (let i = 0; i < this.faceEls.length; i++) {
-          const face = this.faceEls[i];
-          const settleTime = 0.3 + i * 0.2;
-          if (this.rollTimer >= settleTime) {
-            face.textContent = String(this.targetRoll.rolls[i]);
-            face.classList.remove('rolling');
-            face.classList.add('landed');
-          } else {
-            face.textContent = String(1 + Math.floor(Math.random() * this.sides));
-          }
-        }
-      }
-
-      if (this.rollTimer >= settleAt) {
+      if (this.rollTimer >= this.settleAt) {
         this.phase = 'result';
         this.el.classList.remove('rolling-mode');
         this.el.classList.add('result');
         this.totalEl.style.display = 'block';
-        this.totalEl.textContent = `= ${this.targetRoll.total}`;
+        const breakdown = this.targetRoll.rolls.join(' + ') + (this.targetRoll.bonus > 0 ? ` + ${this.targetRoll.bonus}` : '');
+        this.totalEl.textContent = this.targetRoll.rolls.length > 1 || this.targetRoll.bonus > 0
+          ? `${breakdown} = ${this.targetRoll.total}`
+          : `= ${this.targetRoll.total}`;
         this.damageEl.textContent = `${this.damage} ${t('combat.dice.damage', lang)}`;
         this.resultTimer = 0;
       }
