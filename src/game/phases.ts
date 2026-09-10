@@ -38,7 +38,15 @@ export type GameListener = (state: GameState) => void;
 export const SPECIAL_CHARGE_REQUIRED = 2;
 export const SCREAMER_SUMMON_CHANCE = 0.2;
 
-type AnimAction = { type: 'hit' | 'heal'; attackerId: string; targetId: string } | null;
+type HitAnimAction = { type: 'hit' | 'heal'; attackerId: string; targetId: string };
+type CounterAnimAction = {
+  type: 'counter';
+  attackerId: string;
+  targetId: string;
+  counterAttackerId: string;
+  counterTargetId: string;
+};
+type AnimAction = HitAnimAction | CounterAnimAction | null;
 
 let listener: GameListener | null = null;
 let combatScene: CombatScene | null = null;
@@ -56,16 +64,29 @@ function emit(state: GameState): void {
 }
 
 function queueAnim(state: GameState, action: AnimAction, then: () => void): void {
-  if (!action || !combatScene) {
+  const scene = combatScene;
+  if (!action || !scene) {
     then();
+    return;
+  }
+  if (action.type === 'counter') {
+    scene.playHit(action.attackerId, action.targetId, () => {
+      resolveCounterattack(state, action.counterAttackerId, action.counterTargetId);
+      scene.playHit(action.counterAttackerId, action.counterTargetId, () => {
+        emit(state);
+        then();
+      });
+      emit(state);
+    });
+    emit(state);
     return;
   }
   const done = () => {
     emit(state);
     then();
   };
-  if (action.type === 'heal') combatScene.playHeal(action.attackerId, done);
-  else combatScene.playHit(action.attackerId, action.targetId, done);
+  if (action.type === 'heal') scene.playHeal(action.attackerId, done);
+  else scene.playHit(action.attackerId, action.targetId, done);
   emit(state);
 }
 
@@ -440,7 +461,37 @@ function runEnemyTurn(state: GameState, unit: Unit): AnimAction {
   state.combat.log.push(`${unit.nameKey} → ${target.nameKey} (${result.damage})`);
   playSfx('hit');
   if (!target.alive) playSfx('death');
+  if (canCounterattack(state, target)) {
+    return {
+      type: 'counter',
+      attackerId: unit.id,
+      targetId: target.id,
+      counterAttackerId: target.id,
+      counterTargetId: unit.id,
+    };
+  }
   return { type: 'hit', attackerId: unit.id, targetId: target.id };
+}
+
+function canCounterattack(state: GameState, target: Unit): boolean {
+  return target.alive
+    && target.role === 'athlete'
+    && state.profile.levels.athlete >= 3;
+}
+
+function resolveCounterattack(state: GameState, athleteId: string, zombieId: string): void {
+  if (!state.combat) return;
+  const athlete = state.combat.playerUnits.find((unit) => unit.id === athleteId);
+  const zombie = state.combat.enemyUnits.find((unit) => unit.id === zombieId);
+  if (!athlete?.alive || !zombie?.alive) return;
+
+  const wasAlive = zombie.alive;
+  const result = performAttack(athlete, zombie);
+  recordDiceRoll(state.combat, athlete.id, zombie.id, result);
+  tryAwardKillXp(state, zombie, wasAlive);
+  state.combat.log.push(`${athlete.nameKey} counter → ${zombie.nameKey} (${result.damage})`);
+  playSfx('hit');
+  if (!zombie.alive) playSfx('death');
 }
 
 function finishCombatTurn(state: GameState): void {

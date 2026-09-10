@@ -898,6 +898,17 @@ html, body, #app {
   text-shadow: 0 0 8px rgba(94, 207, 138, 0.45);
 }
 
+.combat-action-special.ready {
+  border-color: #7ce6a8;
+  background: linear-gradient(135deg, #163a2b, #111a18);
+  animation: specialReadyPulse 1s ease-in-out infinite alternate;
+}
+
+.combat-action-special.ready .action-dice.charge {
+  color: #d8ffe3;
+  font-weight: 900;
+}
+
 .combat-action-attack:hover { border-color: var(--pulp-red); }
 .combat-action-special:hover { border-color: #4a9e7a; }
 
@@ -981,6 +992,36 @@ html, body, #app {
   margin-left: auto;
 }
 
+.combat-cancel-btn {
+  margin-left: auto;
+  border-color: #a8b0a0;
+}
+
+.special-ready-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: fit-content;
+  margin: 0.1rem auto 0.7rem;
+  padding: 0.35rem 0.85rem;
+  background: #183c2d;
+  border: 2px solid #7ce6a8;
+  border-radius: 5px;
+  color: #e1ffea;
+  font-family: var(--display);
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-shadow: 2px 2px 0 #102016;
+  box-shadow: 0 0 14px rgba(124, 230, 168, 0.55), 3px 3px 0 var(--ink);
+  animation: specialReadyPulse 1s ease-in-out infinite alternate;
+}
+
+.special-ready-icon {
+  font-size: 1.2rem;
+}
+
 .combat-status {
   font-size: 0.78rem;
   font-weight: 800;
@@ -1040,4 +1081,9 @@ html, body, #app {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes specialReadyPulse {
+  from { transform: translateY(0) scale(1); box-shadow: 0 0 10px rgba(124, 230, 168, 0.4), 3px 3px 0 var(--ink); }
+  to { transform: translateY(-2px) scale(1.03); box-shadow: 0 0 24px rgba(124, 230, 168, 0.9), 3px 3px 0 var(--ink); }
 }

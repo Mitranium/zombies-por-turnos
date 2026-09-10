@@ -365,9 +365,9 @@ function buildZombie(role: UnitRole, color: number, seed = 1): THREE.Group {
     addEyes(g, 0, 1.3, -0.02, 0.17, eyeGlow, true);
     // gaping screaming mouth
     addMesh(g, new THREE.TorusGeometry(0.055, 0.028, 6, 10), gore, 0, 1.24, 0.14, 1, 1.3, 1, 1.55, 0, 0);
-    // thin flailing arms
-    addMesh(g, new THREE.BoxGeometry(0.09, 0.46, 0.09), flesh, -0.15, 0.32, 0, 1, 1, 1, 0, 0, 0.35);
-    addMesh(g, new THREE.BoxGeometry(0.09, 0.46, 0.09), flesh, 0.15, 0.34, -0.04, 1, 1, 1, 0, 0, -0.5);
+    // arms thrown up as it screams
+    addMesh(g, new THREE.BoxGeometry(0.09, 0.46, 0.09), flesh, -0.28, 0.98, 0, 1, 1, 1, 0, 0, -0.58);
+    addMesh(g, new THREE.BoxGeometry(0.09, 0.46, 0.09), flesh, 0.28, 1.0, -0.04, 1, 1, 1, 0, 0, 0.62);
     addMesh(g, new THREE.BoxGeometry(0.11, 0.42, 0.11), flesh, -0.09, 0.24, 0);
     addMesh(g, new THREE.BoxGeometry(0.11, 0.42, 0.11), flesh, 0.09, 0.24, 0);
   } else if (role === 'ripper') {

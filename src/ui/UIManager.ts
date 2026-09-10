@@ -7,6 +7,7 @@ import { t } from '../i18n/strings';
 import {
   closeSquadMenu,
   closeWikiMenu,
+  cancelCombatAction,
   confirmDeployment,
   levelUpCharacter,
   openSquadMenu,
@@ -146,10 +147,11 @@ export class UIManager {
     disabled = false,
     status?: string,
     keyboardSelected = false,
+    ready = false,
   ): HTMLButtonElement {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = `combat-action combat-action-${variant}${disabled ? ' locked' : ''}${keyboardSelected ? ' keyboard-selected' : ''}`;
+    b.className = `combat-action combat-action-${variant}${disabled ? ' locked' : ''}${keyboardSelected ? ' keyboard-selected' : ''}${ready ? ' ready' : ''}`;
     b.disabled = disabled;
     b.innerHTML = `
       <span class="action-icon">${info.icon}</span>
@@ -429,6 +431,10 @@ export class UIManager {
 
     if (isPlayerTurn && combat.selectedAction && !interactionLocked) {
       top.appendChild(this.el('span', 'combat-hint', t('combat.selectTarget', state.lang)));
+      top.appendChild(this.btn(t('btn.cancel', state.lang), () => {
+        cancelCombatAction(state);
+        onStateChange(state);
+      }, 'btn chip combat-cancel-btn'));
       if (combat.selectedAction === 'special' && current.role === 'medic') {
         top.appendChild(this.btn('Triage', () => { selectCombatTarget(state, current.id); onStateChange(state); }, 'btn chip triage-btn'));
       }
@@ -443,6 +449,14 @@ export class UIManager {
       const chargeLabel = specialReady
         ? t('combat.special.ready', state.lang)
         : `🔒 ${current.basicAttacks}/${SPECIAL_CHARGE_REQUIRED} ${t('combat.special.basic', state.lang)}`;
+      if (specialReady) {
+        const readyBanner = this.el('div', 'special-ready-banner');
+        readyBanner.append(
+          this.el('span', 'special-ready-icon', '⚡'),
+          this.el('span', 'special-ready-copy', t('combat.special.readyAlert', state.lang)),
+        );
+        bar.appendChild(readyBanner);
+      }
       actions.appendChild(this.actionBtn(t('btn.attack', state.lang), attackInfo, () => {
         selectCombatAction(state, 'attack');
         onStateChange(state);
@@ -450,7 +464,7 @@ export class UIManager {
       actions.appendChild(this.actionBtn(t('btn.special', state.lang), specialInfo, () => {
         selectCombatAction(state, 'special');
         onStateChange(state);
-      }, 'special', interactionLocked || !specialReady, chargeLabel, keyboardView?.actionIndex === 1));
+      }, 'special', interactionLocked || !specialReady, chargeLabel, keyboardView?.actionIndex === 1, specialReady));
       bar.appendChild(actions);
     }
 
