@@ -47,6 +47,10 @@ export class UIManager {
     state: GameState,
     combatScene?: CombatScene,
   ): void {
+    // The UI is rebuilt from scratch on every state change: keep the keyboard
+    // focus on the equivalent control so keyboard play never loses its place.
+    const focusKey = this.captureFocusKey();
+    document.documentElement.lang = state.lang;
     this.root.innerHTML = '';
 
     switch (state.phase) {
@@ -78,12 +82,46 @@ export class UIManager {
         this.renderEnd(state);
         break;
     }
+
+    this.restoreFocus(focusKey);
+  }
+
+  private captureFocusKey(): string | null {
+    const active = document.activeElement;
+    return active instanceof HTMLElement ? active.dataset.focusKey ?? null : null;
+  }
+
+  private restoreFocus(focusKey: string | null): void {
+    if (!focusKey) return;
+    const match = Array.from(this.root.querySelectorAll<HTMLElement>('[data-focus-key]'))
+      .find((el) => el.dataset.focusKey === focusKey);
+    match?.focus();
+  }
+
+  /** Split a leading decorative glyph into an aria-hidden span. */
+  private setLabel(node: HTMLElement, label: string): void {
+    const match = label.match(/^([^\p{L}\p{N}]+)\s+/u);
+    if (!match) {
+      node.textContent = label;
+      return;
+    }
+    const icon = this.el('span', 'btn-glyph');
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = match[1].trim();
+    node.append(icon, document.createTextNode(label.slice(match[0].length)));
   }
 
   private el(tag: string, className: string, text?: string): HTMLElement {
     const node = document.createElement(tag);
     node.className = className;
     if (text) node.textContent = text;
+    return node;
+  }
+
+  /** Decorative glyph: hidden from screen readers. */
+  private glyph(className: string, text: string): HTMLElement {
+    const node = this.el('span', className, text);
+    node.setAttribute('aria-hidden', 'true');
     return node;
   }
 
@@ -152,6 +190,7 @@ export class UIManager {
     b.type = 'button';
     b.className = `combat-action combat-action-${variant}${disabled ? ' locked' : ''}${keyboardSelected ? ' keyboard-selected' : ''}${ready ? ' ready' : ''}`;
     b.disabled = disabled;
+    b.dataset.focusKey = `action:${variant}`;
     const tooltipId = `action-tooltip-${variant}`;
     b.innerHTML = `
       <span class="action-icon" aria-hidden="true">${info.icon}</span>
@@ -182,7 +221,8 @@ export class UIManager {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = className;
-    b.textContent = label;
+    b.dataset.focusKey = label;
+    this.setLabel(b, label);
     b.addEventListener('click', (e) => {
       e.stopPropagation();
       unlockAudio();
@@ -224,6 +264,7 @@ export class UIManager {
     const actions = this.el('div', 'title-actions');
     const squadPanel = this.el('button', 'title-squad-panel') as HTMLButtonElement;
     squadPanel.type = 'button';
+    squadPanel.dataset.focusKey = 'title:squad';
     squadPanel.addEventListener('click', (e) => {
       e.stopPropagation();
       unlockAudio();
@@ -237,7 +278,7 @@ export class UIManager {
       const theme = ROLE_THEME[role];
       const card = this.el('div', 'title-roster-card');
       card.style.setProperty('--role-color', theme.css);
-      card.appendChild(this.el('span', 'title-roster-glyph', theme.glyph));
+      card.appendChild(this.glyph('title-roster-glyph', theme.glyph));
       card.appendChild(this.el('span', 'title-roster-name', t(`unit.${role}`, state.lang)));
       card.appendChild(this.el('span', 'title-roster-level', t('title.levelShort', state.lang, { level })));
       roster.appendChild(card);
@@ -299,7 +340,7 @@ export class UIManager {
       const bonuses = getLevelBonuses(level);
       const card = this.el('div', 'squad-card');
       card.style.setProperty('--role-color', theme.css);
-      card.appendChild(this.el('span', 'squad-card-glyph', theme.glyph));
+      card.appendChild(this.glyph('squad-card-glyph', theme.glyph));
       const info = this.el('div', 'squad-card-info');
       info.appendChild(this.el('strong', 'squad-card-name', t(`unit.${role}`, state.lang)));
       info.appendChild(this.el(
@@ -351,7 +392,7 @@ export class UIManager {
       const stats = getBaseUnitStats(role);
       const card = this.el('div', 'squad-card wiki-card');
       card.style.setProperty('--role-color', theme.css);
-      card.appendChild(this.el('span', 'squad-card-glyph', theme.glyph));
+      card.appendChild(this.glyph('squad-card-glyph', theme.glyph));
       const info = this.el('div', 'squad-card-info');
       info.appendChild(this.el('strong', 'squad-card-name', t(`unit.${role}`, state.lang)));
       info.appendChild(this.el(
@@ -385,7 +426,8 @@ export class UIManager {
       const theme = ROLE_THEME[unit.role];
       const chip = this.el('div', `turn-chip${i === 0 ? ' current' : ''}${!unit.alive ? ' dead' : ''}`);
       chip.style.setProperty('--role-color', theme.css);
-      chip.appendChild(this.el('span', 'turn-chip-glyph', unit.alive ? theme.glyph : '☠'));
+      const glyph = this.glyph('turn-chip-glyph', unit.alive ? theme.glyph : '☠');
+      chip.appendChild(glyph);
       chip.title = t(unit.nameKey, state.lang);
       strip.appendChild(chip);
     }
@@ -429,9 +471,11 @@ export class UIManager {
     const top = this.el('div', 'combat-bar-top');
     top.appendChild(this.el('span', 'round-badge', `${t('round.label', state.lang)} ${state.phaseNumber}`));
     this.appendXpBadge(top, state);
-    top.appendChild(this.el('span', 'combat-status', isPlayerTurn
+    const status = this.el('span', 'combat-status', isPlayerTurn
       ? `${t('combat.playerTurn', state.lang)} · ${t(current.nameKey, state.lang)}`
-      : t('combat.enemyTurn', state.lang)));
+      : t('combat.enemyTurn', state.lang));
+    status.setAttribute('aria-live', 'polite');
+    top.appendChild(status);
     if (interactionLocked) {
       top.appendChild(this.el('span', 'combat-hint', t('combat.waitDice', state.lang)));
     } else if (isPlayerTurn) {
@@ -466,7 +510,7 @@ export class UIManager {
       if (specialReady) {
         const readyBanner = this.el('div', 'special-ready-banner');
         readyBanner.append(
-          this.el('span', 'special-ready-icon', '⚡'),
+          this.glyph('special-ready-icon', '⚡'),
           this.el('span', 'special-ready-copy', t('combat.special.readyAlert', state.lang)),
         );
         bar.appendChild(readyBanner);
@@ -511,8 +555,9 @@ export class UIManager {
         `deployment-chip${deployment.selectedUnitId === unit.id ? ' selected' : ''}`,
       ) as HTMLButtonElement;
       chip.type = 'button';
+      chip.dataset.focusKey = `chip:${unit.id}`;
       chip.style.setProperty('--role-color', theme.css);
-      chip.innerHTML = `<span class="deployment-chip-glyph">${theme.glyph}</span><span>${t(unit.nameKey, state.lang)}</span>`;
+      chip.innerHTML = `<span class="deployment-chip-glyph" aria-hidden="true">${theme.glyph}</span><span>${t(unit.nameKey, state.lang)}</span>`;
       chip.addEventListener('click', (e) => {
         e.stopPropagation();
         unlockAudio();

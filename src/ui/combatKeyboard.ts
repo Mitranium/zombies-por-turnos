@@ -21,8 +21,12 @@ const CONFIRM_KEYS = new Set(['Enter', ' ', 'Spacebar']);
 const CANCEL_KEYS = new Set(['Escape', 'Backspace']);
 
 export function combatKeyFromEvent(event: KeyboardEvent): CombatKey | null {
+  // Keep browser shortcuts (Ctrl+A, Ctrl+W, Alt+← …) untouched.
+  if (event.ctrlKey || event.altKey || event.metaKey) return null;
   if (PREV_KEYS.has(event.key)) return 'prev';
   if (NEXT_KEYS.has(event.key)) return 'next';
+  // Holding Enter/Space/Backspace must not re-trigger confirm/cancel.
+  if (event.repeat) return null;
   if (CONFIRM_KEYS.has(event.key)) return 'confirm';
   if (CANCEL_KEYS.has(event.key)) return 'cancel';
   return null;

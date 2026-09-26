@@ -33,6 +33,10 @@ import {
 const ZOMBIE_SKIN = 0x6a8a5a;
 const OUTLINE_COLOR = 0x100d0a;
 const HEAL_GLOW_HEX = 0x44cc88;
+
+/** Honor the OS-level motion preference: skip camera shake/punch effects. */
+const REDUCED_MOTION = typeof window.matchMedia === 'function'
+  && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const NAMEPLATE_SCALE_X = 1.22;
 const NAMEPLATE_SCALE_Y = 0.42;
 const NAMEPLATE_Y = 1.98;
@@ -513,8 +517,8 @@ export class CombatScene {
     const atk = this.unitVisuals.get(anim.attackerId);
     const tgt = this.unitVisuals.get(anim.targetId);
     if (anim.type === 'hit') {
-      this.shakeIntensity = 0.12;
-      this.punchIntensity = 1;
+      this.shakeIntensity = REDUCED_MOTION ? 0 : 0.12;
+      this.punchIntensity = REDUCED_MOTION ? 0 : 1;
       if (atk && tgt) {
         const mid = atk.basePos.clone().lerp(tgt.basePos, 0.5);
         mid.y = 1;

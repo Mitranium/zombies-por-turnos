@@ -89,6 +89,10 @@ canvas.addEventListener('pointerup', (event) => {
 window.addEventListener('keydown', (event) => {
   const combatKey = combatKeyFromEvent(event);
   if (!combatKey) return;
+  // A focused button owns Enter/Space: let the browser activate it instead of
+  // running the global confirm action behind its back.
+  const target = event.target;
+  if (combatKey === 'confirm' && target instanceof HTMLElement && target.closest('button')) return;
   if (ui.handleKeyboard(combatKey, state, combatScene)) {
     event.preventDefault();
   }
