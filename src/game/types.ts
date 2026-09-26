@@ -55,8 +55,6 @@ export interface CombatState {
   turnIndex: number;
   log: CombatLogEntry[];
   selectedAction: 'attack' | 'special' | null;
-  selectedTargetId: string | null;
-  pendingPlayerUnitId: string | null;
   lastRoll: { attackerId: string; targetId: string; roll: DiceRollResult; damage: number } | null;
 }
 

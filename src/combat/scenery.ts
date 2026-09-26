@@ -1,26 +1,6 @@
 import * as THREE from 'three';
-
-function canvasTexture(w: number, h: number, draw: (ctx: CanvasRenderingContext2D) => void): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext('2d')!;
-  draw(ctx);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+import { canvasTexture } from '../util/canvas';
+import { mulberry32 } from '../util/random';
 
 function makeSkyTexture(): THREE.CanvasTexture {
   return canvasTexture(512, 512, (ctx) => {
@@ -389,7 +369,7 @@ export function buildCombatScenery(): CombatScenery {
   backWall.position.set(0, 3, -6.8);
   group.add(backWall);
 
-  for (const [x, tint] of [[-8.6, wallColors[0]], [8.6, wallColors[1]]] as const) {
+  for (const x of [-8.6, 8.6]) {
     const roofEdge = new THREE.Mesh(
       track(new THREE.BoxGeometry(0.3, 0.3, 7)),
       track(new THREE.MeshStandardMaterial({ color: 0x2a2622, roughness: 0.9 })),
@@ -402,7 +382,6 @@ export function buildCombatScenery(): CombatScenery {
     );
     tank.position.set(x * 0.9, 6.7, -3.5);
     group.add(tank);
-    void tint;
   }
 
   const fireEscapeMat = track(new THREE.MeshStandardMaterial({ color: 0x2a2420, roughness: 0.6, metalness: 0.5 }));

@@ -17,6 +17,8 @@ import {
   updatePopups,
 } from './animations';
 import { diceLabelForRole, rollEventKey } from './dice';
+import { canvasTexture } from '../util/canvas';
+import { hashStr, mulberry32, pickFrom } from '../util/random';
 import { t } from '../i18n/strings';
 import { ROLE_THEME } from '../ui/combatActions';
 import { buildCombatScenery, type CombatScenery } from './scenery';
@@ -85,6 +87,19 @@ interface EmissiveBase {
   intensity: number;
 }
 
+/** userData stamped on hex tiles so ray hits can be mapped back to a cell. */
+interface HexTileData {
+  hexCol: number;
+  hexRow: number;
+  hexSide: GridSide;
+}
+
+/** userData stamped on pickable unit meshes. */
+interface UnitPickData {
+  unitId?: string;
+  isOutline?: boolean;
+}
+
 /** Materials are per-character; remember their authored glow so flashes/heals can restore it. */
 function emissiveBase(material: THREE.MeshStandardMaterial): EmissiveBase {
   const data = material.userData as { emissiveBase?: EmissiveBase };
@@ -95,37 +110,31 @@ function emissiveBase(material: THREE.MeshStandardMaterial): EmissiveBase {
 }
 
 function makeNameplateTexture(name: string, hp: number, maxHp: number, die: string, roleCss: string): THREE.CanvasTexture {
-  const w = 280;
-  const h = 94;
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext('2d')!;
+  return canvasTexture(280, 94, (ctx) => {
+    const w = 280;
+    const h = 94;
 
-  ctx.fillStyle = 'rgba(5,5,8,0.96)';
-  ctx.beginPath();
-  ctx.roundRect(3, 3, w - 6, h - 6, 7);
-  ctx.fill();
-  ctx.strokeStyle = roleCss;
-  ctx.lineWidth = 3;
-  ctx.stroke();
+    ctx.fillStyle = 'rgba(5,5,8,0.96)';
+    ctx.beginPath();
+    ctx.roundRect(3, 3, w - 6, h - 6, 7);
+    ctx.fill();
+    ctx.strokeStyle = roleCss;
+    ctx.lineWidth = 3;
+    ctx.stroke();
 
-  ctx.fillStyle = '#f0f0e8';
-  ctx.font = '900 24px Segoe UI, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(name, w / 2, 31, w - 22);
+    ctx.fillStyle = '#f0f0e8';
+    ctx.font = '900 24px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(name, w / 2, 31, w - 22);
 
-  ctx.fillStyle = '#a8b0a0';
-  ctx.font = 'bold 15px Consolas, monospace';
-  ctx.fillText(`${hp} / ${maxHp}`, w / 2, 56);
+    ctx.fillStyle = '#a8b0a0';
+    ctx.font = 'bold 15px Consolas, monospace';
+    ctx.fillText(`${hp} / ${maxHp}`, w / 2, 56);
 
-  ctx.fillStyle = '#e8c95a';
-  ctx.font = 'bold 14px Consolas, monospace';
-  ctx.fillText(`⚀ ${die}`, w / 2, 80);
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.needsUpdate = true;
-  return tex;
+    ctx.fillStyle = '#e8c95a';
+    ctx.font = 'bold 14px Consolas, monospace';
+    ctx.fillText(`⚀ ${die}`, w / 2, 80);
+  });
 }
 
 function nameplateSignature(unit: Unit, lang: Lang): string {
@@ -164,29 +173,6 @@ function addMesh(
   return m;
 }
 
-function hashStr(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return function () {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function pickFrom<T>(rnd: () => number, arr: T[]): T {
-  return arr[Math.floor(rnd() * arr.length) % arr.length];
-}
-
 function hexToCss(hex: number): string {
   return `#${hex.toString(16).padStart(6, '0')}`;
 }
@@ -197,34 +183,29 @@ const HAIR_TONES = [0x1c140f, 0x3a2418, 0x0f0f0f, 0x5a3a20, 0x7a7a7a];
 /** Small tiling canvas texture that adds worn/mottled character to a flat color via default box UVs. */
 function makeGrimeTexture(seed: number, baseHex: number, blotchAlpha = 0.22): THREE.CanvasTexture {
   const size = 64;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-  const rnd = mulberry32(seed);
-  ctx.fillStyle = hexToCss(baseHex);
-  ctx.fillRect(0, 0, size, size);
-  ctx.fillStyle = `rgba(0,0,0,${blotchAlpha})`;
-  for (let i = 0; i < 16; i++) {
-    const x = rnd() * size;
-    const y = rnd() * size;
-    const r = 2 + rnd() * 7;
-    ctx.beginPath();
-    ctx.ellipse(x, y, r, r * (0.5 + rnd() * 0.7), rnd() * Math.PI, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.fillStyle = 'rgba(255,255,255,0.07)';
-  for (let i = 0; i < 8; i++) {
-    const x = rnd() * size;
-    const y = rnd() * size;
-    const r = 1 + rnd() * 3;
-    ctx.beginPath();
-    ctx.ellipse(x, y, r, r, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.needsUpdate = true;
-  return tex;
+  return canvasTexture(size, size, (ctx) => {
+    const rnd = mulberry32(seed);
+    ctx.fillStyle = hexToCss(baseHex);
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = `rgba(0,0,0,${blotchAlpha})`;
+    for (let i = 0; i < 16; i++) {
+      const x = rnd() * size;
+      const y = rnd() * size;
+      const r = 2 + rnd() * 7;
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r * (0.5 + rnd() * 0.7), rnd() * Math.PI, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.07)';
+    for (let i = 0; i < 8; i++) {
+      const x = rnd() * size;
+      const y = rnd() * size;
+      const r = 1 + rnd() * 3;
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
 }
 
 function matTex(color: number, tex: THREE.Texture, rough = 0.6, metal = 0.06): THREE.MeshStandardMaterial {
@@ -641,45 +622,39 @@ export class CombatScene {
     const borderGeo = new THREE.BufferGeometry().setFromPoints(borderPoints);
 
     for (const side of ['player', 'enemy'] as GridSide[]) {
-      const fillColor = side === 'player' ? 0x3a5a78 : 0x5a3838;
-      const emissiveColor = side === 'player' ? 0x2a5070 : 0x502828;
-      const borderColor = side === 'player' ? 0x88c8f0 : 0xf08888;
+      // One material pair per side: 18 tiles share them instead of each tile
+      // allocating its own two materials.
+      const tileMaterial = new THREE.MeshStandardMaterial({
+        color: side === 'player' ? 0x3a5a78 : 0x5a3838,
+        transparent: true,
+        opacity: 0.72,
+        roughness: 0.75,
+        metalness: 0.08,
+        emissive: side === 'player' ? 0x2a5070 : 0x502828,
+        emissiveIntensity: 0.35,
+        depthWrite: false,
+      });
+      const borderMaterial = new THREE.LineBasicMaterial({
+        color: side === 'player' ? 0x88c8f0 : 0xf08888,
+        transparent: true,
+        opacity: 0.95,
+      });
 
       for (let row = 0; row < GRID_SIZE; row++) {
         for (let col = 0; col < GRID_SIZE; col++) {
           const pos = gridToWorld(col, row, side);
-          const tileGroup = new THREE.Group();
-          tileGroup.position.set(pos.x, 0, pos.z);
 
-          const tile = new THREE.Mesh(
-            geo,
-            new THREE.MeshStandardMaterial({
-              color: fillColor,
-              transparent: true,
-              opacity: 0.72,
-              roughness: 0.75,
-              metalness: 0.08,
-              emissive: emissiveColor,
-              emissiveIntensity: 0.35,
-              depthWrite: false,
-            }),
-          );
+          const tile = new THREE.Mesh(geo, tileMaterial);
           tile.rotation.x = -Math.PI / 2;
-          tile.position.y = 0.012;
+          tile.position.set(pos.x, 0.012, pos.z);
           tile.userData = { hexCol: col, hexRow: row, hexSide: side };
-          tileGroup.add(tile);
 
-          const border = new THREE.Line(
-            borderGeo,
-            new THREE.LineBasicMaterial({ color: borderColor, transparent: true, opacity: 0.95 }),
-          );
+          const border = new THREE.Line(borderGeo, borderMaterial);
           border.rotation.x = -Math.PI / 2;
-          border.position.y = 0.018;
-          tileGroup.add(border);
+          border.position.set(pos.x, 0.018, pos.z);
 
-          const key = `${side}:${col},${row}`;
-          this.hexTiles.set(key, tile);
-          this.hexGridGroup.add(tileGroup);
+          this.hexTiles.set(`${side}:${col},${row}`, tile);
+          this.hexGridGroup.add(tile, border);
         }
       }
     }
@@ -802,8 +777,8 @@ export class CombatScene {
     }
     const hits = this.raycaster.intersectObjects(meshes);
     if (!hits.length) return null;
-    const data = hits[0].object.userData;
-    return { col: data.hexCol as number, row: data.hexRow as number };
+    const data = hits[0].object.userData as HexTileData;
+    return { col: data.hexCol, row: data.hexRow };
   }
 
   syncCombat(combat: CombatState, lang: Lang): void {
@@ -1007,7 +982,7 @@ export class CombatScene {
     for (const vis of this.unitVisuals.values()) meshes.push(...vis.pickTargets);
     const hits = this.raycaster.intersectObjects(meshes);
     if (!hits.length) return null;
-    return (hits[0].object.userData.unitId as string) ?? null;
+    return (hits[0].object.userData as UnitPickData).unitId ?? null;
   }
 
   private updateDeathAnims(dt: number): void {

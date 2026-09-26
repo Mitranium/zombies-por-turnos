@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Lang } from '../game/types';
+import { canvasTexture } from '../util/canvas';
 
 export type AnimType = 'hit' | 'heal';
 
@@ -9,19 +10,14 @@ export interface ActiveCombatAnim {
   targetId: string;
   elapsed: number;
   duration: number;
-  done: boolean;
 }
 
 export function createHitAnim(attackerId: string, targetId: string): ActiveCombatAnim {
-  return { type: 'hit', attackerId, targetId, elapsed: 0, duration: 0.42, done: false };
+  return { type: 'hit', attackerId, targetId, elapsed: 0, duration: 0.42 };
 }
 
 export function createHealAnim(healerId: string): ActiveCombatAnim {
-  return { type: 'heal', attackerId: healerId, targetId: healerId, elapsed: 0, duration: 0.4, done: false };
-}
-
-export function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
+  return { type: 'heal', attackerId: healerId, targetId: healerId, elapsed: 0, duration: 0.4 };
 }
 
 export function easeOutQuad(t: number): number {
@@ -103,44 +99,38 @@ const BURST_WORDS = ['POW!', 'BAM!', 'CRASH!', 'WHACK!', 'BOOM!', 'SMASH!', 'KO!
 function makeBurstTexture(word: string): THREE.CanvasTexture {
   const w = 300;
   const h = 200;
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext('2d')!;
-  ctx.translate(w / 2, h / 2);
-  ctx.rotate((Math.random() - 0.5) * 0.3);
+  return canvasTexture(w, h, (ctx) => {
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate((Math.random() - 0.5) * 0.3);
 
-  const spikes = 11;
-  const outer = 88;
-  const inner = 52;
-  ctx.beginPath();
-  for (let i = 0; i < spikes * 2; i++) {
-    const r = i % 2 === 0 ? outer : inner;
-    const a = (i / (spikes * 2)) * Math.PI * 2;
-    const px = Math.cos(a) * r;
-    const py = Math.sin(a) * r * 0.72;
-    if (i === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  }
-  ctx.closePath();
-  ctx.fillStyle = '#fff4d0';
-  ctx.fill();
-  ctx.lineWidth = 7;
-  ctx.strokeStyle = '#161311';
-  ctx.stroke();
+    const spikes = 11;
+    const outer = 88;
+    const inner = 52;
+    ctx.beginPath();
+    for (let i = 0; i < spikes * 2; i++) {
+      const r = i % 2 === 0 ? outer : inner;
+      const a = (i / (spikes * 2)) * Math.PI * 2;
+      const px = Math.cos(a) * r;
+      const py = Math.sin(a) * r * 0.72;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = '#fff4d0';
+    ctx.fill();
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = '#161311';
+    ctx.stroke();
 
-  ctx.fillStyle = '#e8402c';
-  ctx.font = "900 40px 'Segoe UI', sans-serif";
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = '#161311';
-  ctx.strokeText(word, 0, 4);
-  ctx.fillText(word, 0, 4);
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.needsUpdate = true;
-  return tex;
+    ctx.fillStyle = '#e8402c';
+    ctx.font = "900 40px 'Segoe UI', sans-serif";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#161311';
+    ctx.strokeText(word, 0, 4);
+    ctx.fillText(word, 0, 4);
+  });
 }
 
 export interface Popup {

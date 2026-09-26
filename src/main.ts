@@ -10,6 +10,7 @@ import {
 import { CombatScene } from './combat/CombatScene';
 import { UIManager } from './ui/UIManager';
 import { unlockAudio } from './audio/sfx';
+import { stopBgMusic } from './audio/music';
 import { combatKeyFromEvent } from './ui/combatKeyboard';
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -114,6 +115,7 @@ function loop(now: number): void {
 window.addEventListener('pagehide', () => {
   window.clearTimeout(refreshTimer);
   cancelAnimationFrame(frameId);
+  stopBgMusic();
   combatScene.dispose();
 });
 

@@ -5,8 +5,6 @@ export const GRID_SIZE = 3;
 export const HEX_RADIUS = 0.58;
 
 /** Unified battle grid: 3 player cols + 3 enemy cols, 3 rows deep. */
-export const BATTLE_COLS = 6;
-export const BATTLE_ROWS = 3;
 export const PLAYER_ZONE_COLS = 3;
 
 export interface GridPos {
@@ -139,24 +137,6 @@ export function placeUnitsOnGrid(
   }
 }
 
-export function shuffleUnitOnGrid(unit: Unit, gridUnits: Unit[]): void {
-  assignRandomGridCell(unit, gridUnits);
-}
-
 export function prefersBackTargets(role: UnitRole): boolean {
   return role === 'ripper' || role === 'criminal';
-}
-
-/** Higher score = more attractive target. Distance on the 6×3 battle grid is primary. */
-export function targetPriority(
-  attacker: Unit,
-  target: Unit,
-  attackerSide: GridSide,
-  targetSide: GridSide,
-  preferBack: boolean,
-): number {
-  const dist = combatDistance(attacker, attackerSide, target, targetSide);
-  let score = -dist * 1000;
-  if (preferBack) score += target.gridRow * 10;
-  return score;
 }

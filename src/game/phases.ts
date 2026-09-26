@@ -33,7 +33,6 @@ import {
   defaultGridForRole,
   isValidGridCell,
   placeUnitsOnGrid,
-  shuffleUnitOnGrid,
   syncRankFromGrid,
 } from '../combat/hexGrid';
 import { playSfx } from '../audio/sfx';
@@ -309,8 +308,6 @@ function startRound(state: GameState, deployedUnits: Unit[]): void {
     turnIndex: 0,
     log: [],
     selectedAction: null,
-    selectedTargetId: null,
-    pendingPlayerUnitId: null,
     lastRoll: null,
   };
   pushLog(state.combat, 'log.roundStart', {
@@ -367,8 +364,6 @@ function recordDiceRoll(
 export function cancelCombatAction(state: GameState): void {
   if (!state.combat?.selectedAction || combatScene?.animating) return;
   state.combat.selectedAction = null;
-  state.combat.selectedTargetId = null;
-  state.combat.pendingPlayerUnitId = null;
   emit(state);
 }
 
@@ -381,8 +376,6 @@ export function selectCombatAction(state: GameState, action: 'attack' | 'special
     return;
   }
   state.combat.selectedAction = action;
-  state.combat.selectedTargetId = null;
-  state.combat.pendingPlayerUnitId = current.id;
   emit(state);
 }
 
@@ -434,8 +427,6 @@ export function selectCombatTarget(state: GameState, targetId: string): void {
 
 function clearSelection(combat: CombatState): void {
   combat.selectedAction = null;
-  combat.selectedTargetId = null;
-  combat.pendingPlayerUnitId = null;
 }
 
 export function advanceCombatTurn(state: GameState): void {
@@ -488,7 +479,7 @@ function runEnemyTurn(state: GameState, unit: Unit): AnimAction {
   const targets = combat.playerUnits;
   const allies = combat.enemyUnits.filter((ally) => ally.alive);
 
-  shuffleUnitOnGrid(unit, allies);
+  assignRandomGridCell(unit, allies);
   emit(state);
 
   if (unit.role === 'screamer' && Math.random() < SCREAMER_SUMMON_CHANCE) {

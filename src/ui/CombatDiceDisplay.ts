@@ -18,7 +18,7 @@ export class CombatDiceDisplay {
   private damage = 0;
   private rollTimer = 0;
   private resultTimer = 0;
-  private settleAt = 1.2;
+  private settleAt = 0;
 
   constructor() {
     this.el = document.createElement('div');
