@@ -1,9 +1,23 @@
-import type { CombatState, DiceRollResult, GameState, Rank, Unit, UnitRole } from './types';
+import type { CombatLogEntry, CombatState, GameState, LogParamValue, Rank, SkillResult, Unit, UnitRole } from './types';
+import {
+  COUNTERATTACK_ATHLETE_LEVEL,
+  SCREAMER_SUMMON_CHANCE,
+  SPECIAL_CHARGE_REQUIRED,
+  WAVE_MAX_COUNT,
+  WAVE_RIPPER_EXTRA_FROM_ROUND,
+  WAVE_RIPPER_FROM_ROUND,
+  WAVE_SCREAMER_FROM_ROUND,
+  WAVE_SPEED_CAP,
+  WAVE_SPEED_PER_TIER,
+  waveHealthScale,
+  waveTier,
+} from './balance';
 import {
   createInitialState,
   createUnit,
   getAliveMembers,
   getPlayerSquad,
+  refreshPlayerSquadLevels,
 } from './state';
 import {
   cloneUnitsForCombat,
@@ -32,11 +46,8 @@ import {
   saveProfile,
   type PlayerRole,
 } from './progression';
-import { refreshPlayerSquadLevels } from './state';
 
 export type GameListener = (state: GameState) => void;
-export const SPECIAL_CHARGE_REQUIRED = 2;
-export const SCREAMER_SUMMON_CHANCE = 0.2;
 
 type HitAnimAction = { type: 'hit' | 'heal'; attackerId: string; targetId: string };
 type CounterAnimAction = {
@@ -61,6 +72,27 @@ export function setGameListener(fn: GameListener | null): void {
 
 function emit(state: GameState): void {
   listener?.(state);
+}
+
+function unitRef(unit: Unit): { nameKey: string } {
+  return { nameKey: unit.nameKey };
+}
+
+/** Log lines are kept as data so they can be rendered in the current language. */
+function pushLog(combat: CombatState, key: string, params?: Record<string, LogParamValue>): void {
+  const entry: CombatLogEntry = { key };
+  if (params) entry.params = params;
+  combat.log.push(entry);
+}
+
+function pushSkillLog(combat: CombatState, result: SkillResult, actor: Unit, target?: Unit): void {
+  const params: Record<string, LogParamValue> = { ...result.logParams, attacker: unitRef(actor) };
+  if (target) params.target = unitRef(target);
+  if (result.damage !== undefined) params.amount = result.damage;
+  pushLog(combat, result.logKey, params);
+  if (result.selfDamage !== undefined) {
+    pushLog(combat, 'log.self', { attacker: unitRef(actor), amount: result.selfDamage });
+  }
 }
 
 function queueAnim(state: GameState, action: AnimAction, then: () => void): void {
@@ -93,15 +125,8 @@ function queueAnim(state: GameState, action: AnimAction, then: () => void): void
 export function startGame(state: GameState): void {
   startBgMusic();
   state.phaseNumber = 1;
-  state.message = '';
   state.runXpGained = 0;
-  const player = getPlayerSquad(state);
-  refreshPlayerSquadLevels(player, state.profile);
-  for (const member of player.members) {
-    member.alive = true;
-    member.hp = member.maxHp;
-    member.basicAttacks = 0;
-  }
+  resetSquadForRound(state);
   enterDeployment(state);
 }
 
@@ -141,11 +166,11 @@ function tryAwardKillXp(state: GameState, enemy: Unit, wasAlive: boolean): void 
   const gained = awardKillXp(state.profile, enemy.role);
   if (gained <= 0) return;
   state.runXpGained += gained;
-  state.combat.log.push(`+${gained} XP`);
+  pushLog(state.combat, 'log.xp', { amount: gained });
 }
 
-export function startNextRound(state: GameState): void {
-  if (state.phase !== 'roundbreak') return;
+/** Bring the squad back to full strength between rounds. */
+function resetSquadForRound(state: GameState): void {
   const player = getPlayerSquad(state);
   refreshPlayerSquadLevels(player, state.profile);
   for (const member of player.members) {
@@ -153,6 +178,11 @@ export function startNextRound(state: GameState): void {
     member.hp = member.maxHp;
     member.basicAttacks = 0;
   }
+}
+
+export function startNextRound(state: GameState): void {
+  if (state.phase !== 'roundbreak') return;
+  resetSquadForRound(state);
   state.phaseNumber += 1;
   enterDeployment(state);
 }
@@ -227,32 +257,35 @@ export function confirmDeployment(state: GameState): void {
   startRound(state, units);
 }
 
+/** Default spawn cells for wave units. */
+const SCREAMER_CELL = { col: 1, row: 2 };
+const FRONT_CELL = { col: 1, row: 0 };
+
 function waveRole(round: number, index: number, count: number): UnitRole {
   if (round === 1) return 'shambler';
-  if (round >= 3 && index === count - 1) return 'ripper';
-  if (round >= 2 && index % 3 === 2) return 'screamer';
-  if (round >= 5 && index % 4 === 1) return 'ripper';
+  if (round >= WAVE_RIPPER_FROM_ROUND && index === count - 1) return 'ripper';
+  if (round >= WAVE_SCREAMER_FROM_ROUND && index % 3 === 2) return 'screamer';
+  if (round >= WAVE_RIPPER_EXTRA_FROM_ROUND && index % 4 === 1) return 'ripper';
   return 'shambler';
 }
 
 function buildWave(round: number): Unit[] {
-  const count = Math.min(round + 1, 8);
-  const tier = Math.floor((round - 1) / 3);
+  const count = Math.min(round + 1, WAVE_MAX_COUNT);
+  const tier = waveTier(round);
   const squadId = `wave_${round}`;
 
   const units = Array.from({ length: count }, (_, index) => {
     const role = waveRole(round, index, count);
-    const rank = (role === 'screamer' ? 'back' : 'front') as Rank;
+    const rank: Rank = role === 'screamer' ? 'back' : 'front';
     const unit = createUnit(role, squadId, rank, `unit.${role}`);
-    const healthScale = 1 + tier * 0.18;
-    unit.maxHp = Math.round(unit.maxHp * healthScale);
+    unit.maxHp = Math.round(unit.maxHp * waveHealthScale(round));
     unit.hp = unit.maxHp;
-    unit.speed = Math.min(10, unit.speed + tier);
+    unit.speed = Math.min(WAVE_SPEED_CAP, unit.speed + tier * WAVE_SPEED_PER_TIER);
     return unit;
   });
 
   placeUnitsOnGrid(units, (unit) => (
-    unit.role === 'screamer' ? { col: 1, row: 2 } : { col: 1, row: 0 }
+    unit.role === 'screamer' ? SCREAMER_CELL : FRONT_CELL
   ));
   return units;
 }
@@ -274,12 +307,16 @@ function startRound(state: GameState, deployedUnits: Unit[]): void {
     enemyUnits,
     turnOrder: sortByInitiative([...playerUnits, ...enemyUnits]),
     turnIndex: 0,
-    log: [`Ronda ${state.phaseNumber}: ${enemyUnits.length} zombis`],
+    log: [],
     selectedAction: null,
     selectedTargetId: null,
     pendingPlayerUnitId: null,
     lastRoll: null,
   };
+  pushLog(state.combat, 'log.roundStart', {
+    round: state.phaseNumber,
+    count: enemyUnits.length,
+  });
   state.phase = 'combat';
   advanceCombatTurn(state);
 }
@@ -292,6 +329,15 @@ function getCurrentCombatUnit(combat: CombatState): Unit | null {
 
 function isPlayerUnit(unit: Unit, combat: CombatState): boolean {
   return combat.playerUnits.some((player) => player.id === unit.id && player.alive);
+}
+
+/**
+ * The acting unit when it belongs to the player. Shared with the UI layer so
+ * "player turn" means exactly the same thing everywhere.
+ */
+export function getPlayerTurnUnit(combat: CombatState): Unit | null {
+  const current = getCurrentCombatUnit(combat);
+  return current && isPlayerUnit(current, combat) ? current : null;
 }
 
 function syncPlayerSquadFromCombat(state: GameState): void {
@@ -310,7 +356,7 @@ function recordDiceRoll(
   combat: CombatState,
   attackerId: string,
   targetId: string,
-  result: { damage?: number; diceRoll?: DiceRollResult },
+  result: SkillResult,
 ): void {
   if (result.diceRoll && result.damage !== undefined) {
     combat.lastRoll = { attackerId, targetId, roll: result.diceRoll, damage: result.damage };
@@ -328,8 +374,8 @@ export function cancelCombatAction(state: GameState): void {
 
 export function selectCombatAction(state: GameState, action: 'attack' | 'special'): void {
   if (!state.combat || combatScene?.animating) return;
-  const current = getCurrentCombatUnit(state.combat);
-  if (!current || !isPlayerUnit(current, state.combat)) return;
+  const current = getPlayerTurnUnit(state.combat);
+  if (!current) return;
   if (action === 'special' && current.basicAttacks < SPECIAL_CHARGE_REQUIRED) {
     playSfx('locked');
     return;
@@ -342,33 +388,33 @@ export function selectCombatAction(state: GameState, action: 'attack' | 'special
 
 export function selectCombatTarget(state: GameState, targetId: string): void {
   if (!state.combat || !state.combat.selectedAction || combatScene?.animating) return;
-  const current = getCurrentCombatUnit(state.combat);
-  if (!current || !isPlayerUnit(current, state.combat)) return;
+  const current = getPlayerTurnUnit(state.combat);
+  if (!current) return;
 
-  const allies = state.combat.playerUnits.filter((unit) => unit.alive);
-  const enemies = state.combat.enemyUnits.filter((unit) => unit.alive);
+  const combat = state.combat;
+  const enemies = combat.enemyUnits.filter((unit) => unit.alive);
 
-  if (state.combat.selectedAction === 'attack') {
+  if (combat.selectedAction === 'attack') {
     const target = enemies.find((enemy) => enemy.id === targetId);
     if (!target) return;
     const wasAlive = target.alive;
     const result = performAttack(current, target);
     tryAwardKillXp(state, target, wasAlive);
     current.basicAttacks = Math.min(SPECIAL_CHARGE_REQUIRED, current.basicAttacks + 1);
-    recordDiceRoll(state.combat, current.id, target.id, result);
-    state.combat.log.push(`${current.nameKey} → ${target.nameKey} (${result.damage})`);
+    recordDiceRoll(combat, current.id, target.id, result);
+    pushSkillLog(combat, result, current, target);
     playSfx('hit');
-    clearSelection(state.combat);
+    clearSelection(combat);
     queueAnim(state, { type: 'hit', attackerId: current.id, targetId: target.id }, () => finishCombatTurn(state));
     return;
   }
 
   if (current.role === 'medic') {
-    triageHeal(allies);
+    const result = triageHeal(combat.playerUnits.filter((unit) => unit.alive));
     current.basicAttacks = 0;
-    state.combat.log.push(`${current.nameKey} triage`);
+    pushSkillLog(combat, result, current);
     playSfx('heal');
-    clearSelection(state.combat);
+    clearSelection(combat);
     queueAnim(state, { type: 'heal', attackerId: current.id, targetId: current.id }, () => finishCombatTurn(state));
     return;
   }
@@ -376,18 +422,13 @@ export function selectCombatTarget(state: GameState, targetId: string): void {
   const target = enemies.find((enemy) => enemy.id === targetId);
   if (!target) return;
   const wasAlive = target.alive;
-  const result = performSpecial(current, target, allies, enemies);
+  const result = performSpecial(current, target);
   tryAwardKillXp(state, target, wasAlive);
   current.basicAttacks = 0;
-  if (result.summon) {
-    const summoned = summonShambler(`wave_${state.phaseNumber}`);
-    state.combat.enemyUnits.push(summoned);
-    state.combat.turnOrder.push(summoned);
-  }
-  recordDiceRoll(state.combat, current.id, target.id, result);
-  state.combat.log.push(`${current.nameKey} special → ${target.nameKey} (${result.damage ?? 0})`);
+  recordDiceRoll(combat, current.id, target.id, result);
+  pushSkillLog(combat, result, current, target);
   playSfx('special');
-  clearSelection(state.combat);
+  clearSelection(combat);
   queueAnim(state, { type: 'hit', attackerId: current.id, targetId: target.id }, () => finishCombatTurn(state));
 }
 
@@ -443,30 +484,30 @@ function stepCombatTurn(state: GameState): void {
 
 function runEnemyTurn(state: GameState, unit: Unit): AnimAction {
   if (!state.combat) return null;
-  const enemies = state.combat.playerUnits;
-  const allies = state.combat.enemyUnits.filter((ally) => ally.alive);
+  const combat = state.combat;
+  const targets = combat.playerUnits;
+  const allies = combat.enemyUnits.filter((ally) => ally.alive);
 
   shuffleUnitOnGrid(unit, allies);
   emit(state);
 
   if (unit.role === 'screamer' && Math.random() < SCREAMER_SUMMON_CHANCE) {
     const summoned = summonShambler(`wave_${state.phaseNumber}`);
-    const tier = Math.floor((state.phaseNumber - 1) / 3);
-    summoned.maxHp = Math.round(summoned.maxHp * (1 + tier * 0.18));
+    summoned.maxHp = Math.round(summoned.maxHp * waveHealthScale(state.phaseNumber));
     summoned.hp = summoned.maxHp;
     assignRandomGridCell(summoned, [...allies, summoned]);
-    state.combat.enemyUnits.push(summoned);
-    state.combat.turnOrder.push(summoned);
-    state.combat.log.push('Screamer calls a shambler!');
+    combat.enemyUnits.push(summoned);
+    combat.turnOrder.push(summoned);
+    pushLog(combat, 'log.summon');
     playSfx('hit');
     return null;
   }
 
-  const target = pickAiTarget(unit, enemies);
+  const target = pickAiTarget(unit, targets);
   if (!target) return null;
   const result = performAttack(unit, target);
-  recordDiceRoll(state.combat, unit.id, target.id, result);
-  state.combat.log.push(`${unit.nameKey} → ${target.nameKey} (${result.damage})`);
+  recordDiceRoll(combat, unit.id, target.id, result);
+  pushSkillLog(combat, result, unit, target);
   playSfx('hit');
   if (!target.alive) playSfx('death');
   if (canCounterattack(state, target)) {
@@ -484,7 +525,7 @@ function runEnemyTurn(state: GameState, unit: Unit): AnimAction {
 function canCounterattack(state: GameState, target: Unit): boolean {
   return target.alive
     && target.role === 'athlete'
-    && state.profile.levels.athlete >= 3;
+    && state.profile.levels.athlete >= COUNTERATTACK_ATHLETE_LEVEL;
 }
 
 function resolveCounterattack(state: GameState, athleteId: string, zombieId: string): void {
@@ -497,7 +538,7 @@ function resolveCounterattack(state: GameState, athleteId: string, zombieId: str
   const result = performAttack(athlete, zombie);
   recordDiceRoll(state.combat, athlete.id, zombie.id, result);
   tryAwardKillXp(state, zombie, wasAlive);
-  state.combat.log.push(`${athlete.nameKey} counter → ${zombie.nameKey} (${result.damage})`);
+  pushSkillLog(state.combat, result, athlete, zombie);
   playSfx('hit');
   if (!zombie.alive) playSfx('death');
 }

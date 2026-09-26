@@ -93,7 +93,6 @@ export function createInitialState(lang: 'en' | 'es' = 'en'): GameState {
     deployment: null,
     profile,
     runXpGained: 0,
-    message: '',
   };
 }
 

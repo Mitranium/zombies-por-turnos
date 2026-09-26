@@ -1,10 +1,11 @@
 import type { GameState } from '../game/types';
 import {
-  SPECIAL_CHARGE_REQUIRED,
-  cancelCombatAction,
+  getPlayerTurnUnit,
   selectCombatAction,
   selectCombatTarget,
+  cancelCombatAction,
 } from '../game/phases';
+import { SPECIAL_CHARGE_REQUIRED } from '../game/balance';
 import type { CombatScene } from '../combat/CombatScene';
 import { playSfx, unlockAudio } from '../audio/sfx';
 
@@ -48,9 +49,8 @@ export class CombatKeyboardController {
   getView(state: GameState): CombatKeyboardView | null {
     if (state.phase !== 'combat' || !state.combat) return null;
     const combat = state.combat;
-    const current = combat.turnOrder[combat.turnIndex];
-    const isPlayerTurn = !!current?.alive && combat.playerUnits.some((unit) => unit.id === current.id);
-    if (!isPlayerTurn) return null;
+    const current = getPlayerTurnUnit(combat);
+    if (!current) return null;
 
     const aliveEnemyIds = combat.enemyUnits.filter((unit) => unit.alive).map((unit) => unit.id);
     const key = [
@@ -84,14 +84,12 @@ export class CombatKeyboardController {
     key: CombatKey,
     state: GameState,
     combatScene: CombatScene | undefined,
-    onStateChange: (next: GameState) => void,
   ): boolean {
     if (state.phase !== 'combat' || !state.combat || combatScene?.animating) return false;
 
     const combat = state.combat;
-    const current = combat.turnOrder[combat.turnIndex];
-    const isPlayerTurn = !!current?.alive && combat.playerUnits.some((unit) => unit.id === current.id);
-    if (!isPlayerTurn) return false;
+    const current = getPlayerTurnUnit(combat);
+    if (!current) return false;
 
     unlockAudio();
 
@@ -101,13 +99,11 @@ export class CombatKeyboardController {
       if (key === 'prev') {
         this.actionIndex = 0;
         playSfx('click');
-        onStateChange(state);
         return true;
       }
       if (key === 'next') {
         this.actionIndex = 1;
         playSfx('click');
-        onStateChange(state);
         return true;
       }
       if (key === 'confirm') {
@@ -122,7 +118,6 @@ export class CombatKeyboardController {
         } else {
           this.targetIndex = 0;
         }
-        onStateChange(state);
         return true;
       }
       return false;
@@ -131,12 +126,10 @@ export class CombatKeyboardController {
     if (combat.selectedAction === 'special' && current.role === 'medic') {
       if (key === 'confirm') {
         selectCombatTarget(state, current.id);
-        onStateChange(state);
         return true;
       }
       if (key === 'cancel') {
         cancelCombatAction(state);
-        onStateChange(state);
         return true;
       }
       return false;
@@ -148,25 +141,21 @@ export class CombatKeyboardController {
     if (key === 'prev') {
       this.targetIndex = (this.targetIndex - 1 + enemies.length) % enemies.length;
       playSfx('click');
-      onStateChange(state);
       return true;
     }
     if (key === 'next') {
       this.targetIndex = (this.targetIndex + 1) % enemies.length;
       playSfx('click');
-      onStateChange(state);
       return true;
     }
     if (key === 'confirm') {
       const target = enemies[this.targetIndex];
       if (!target) return false;
       selectCombatTarget(state, target.id);
-      onStateChange(state);
       return true;
     }
     if (key === 'cancel') {
       cancelCombatAction(state);
-      onStateChange(state);
       return true;
     }
 

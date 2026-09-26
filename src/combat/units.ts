@@ -1,5 +1,9 @@
 import type { SkillResult, Unit } from '../game/types';
 import { createUnit, uid } from '../game/state';
+import {
+  RECKLESS_SELF_DAMAGE,
+  TRIAGE_HEAL_AMOUNT,
+} from '../game/balance';
 import { getDiceConfig, rollDice } from './dice';
 import { combatDistance, prefersBackTargets } from './hexGrid';
 
@@ -23,48 +27,26 @@ export function performAttack(
   };
 }
 
-export function performSpecial(
-  attacker: Unit,
-  target: Unit | null,
-  allies: Unit[],
-  enemies: Unit[],
-): SkillResult {
-  switch (attacker.role) {
-    case 'athlete': {
-      const dmg = performAttack(attacker, target!, true);
-      return { ...dmg, logKey: 'log.hit' };
-    }
-    case 'medic': {
-      const healTarget = target ?? allies.find((a) => a.alive)!;
-      const amount = 10;
-      healTarget.hp = Math.min(healTarget.maxHp, healTarget.hp + amount);
-      return { heal: amount, logKey: 'log.heal', logParams: { amount } };
-    }
-    case 'criminal': {
-      const result = performAttack(attacker, target!, true);
-      const selfDamage = 2;
-      attacker.hp = Math.max(0, attacker.hp - selfDamage);
-      if (attacker.hp <= 0) attacker.alive = false;
-      return { ...result, selfDamage };
-    }
-    case 'screamer': {
-      return { summon: 'shambler', logKey: 'log.summon' };
-    }
-    case 'ripper': {
-      const backTarget = enemies.find((e) => e.alive && e.gridRow >= 2) ?? target!;
-      return performAttack(attacker, backTarget);
-    }
-    default:
-      return performAttack(attacker, target!);
+/**
+ * Special attack for player characters. The medic's special is a heal and goes
+ * through `triageHeal` instead.
+ */
+export function performSpecial(attacker: Unit, target: Unit): SkillResult {
+  const result = performAttack(attacker, target, true);
+  if (attacker.role === 'criminal') {
+    attacker.hp = Math.max(0, attacker.hp - RECKLESS_SELF_DAMAGE);
+    if (attacker.hp <= 0) attacker.alive = false;
+    return { ...result, selfDamage: RECKLESS_SELF_DAMAGE, logKey: 'log.special' };
   }
+  return { ...result, logKey: 'log.special' };
 }
 
 export function triageHeal(allies: Unit[]): SkillResult {
-  const amount = 8;
+  const amount = TRIAGE_HEAL_AMOUNT;
   for (const ally of allies.filter((a) => a.alive)) {
     ally.hp = Math.min(ally.maxHp, ally.hp + amount);
   }
-  return { heal: amount, logKey: 'log.heal', logParams: { amount } };
+  return { heal: amount, logKey: 'log.triage', logParams: { amount } };
 }
 
 export function pickAiTarget(attacker: Unit, enemies: Unit[]): Unit | null {

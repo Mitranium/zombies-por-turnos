@@ -44,14 +44,9 @@ function resize(): void {
 }
 
 function refresh(): void {
-  ui.render(
-    state,
-    (next) => {
-      state = next;
-      refresh();
-    },
-    combatScene,
-  );
+  // Render is driven exclusively by the game listener (see setGameListener):
+  // every state mutation emits exactly one change.
+  ui.render(state, combatScene);
 
   if (state.phase === 'combat' && state.combat) {
     combatScene.syncCombat(state.combat, state.lang);
@@ -77,30 +72,24 @@ canvas.addEventListener('pointerup', (event) => {
     const unitId = combatScene.pickUnit(canvas, event.clientX, event.clientY);
     if (unitId) {
       selectDeploymentUnit(state, unitId);
-      refresh();
       return;
     }
     const cell = combatScene.pickHexCell(canvas, event.clientX, event.clientY, 'player');
     if (cell) {
       placeDeploymentUnit(state, cell.col, cell.row);
-      refresh();
     }
     return;
   }
   if (state.phase !== 'combat' || !state.combat?.selectedAction) return;
-  const unitId = combatScene.pickUnit(canvas, event.clientX, event.clientY);
-  if (!unitId) return;
-  selectCombatTarget(state, unitId);
-  refresh();
+  const targetId = combatScene.pickUnit(canvas, event.clientX, event.clientY);
+  if (!targetId) return;
+  selectCombatTarget(state, targetId);
 });
 
 window.addEventListener('keydown', (event) => {
   const combatKey = combatKeyFromEvent(event);
   if (!combatKey) return;
-  if (ui.handleKeyboard(combatKey, state, (next) => {
-    state = next;
-    refresh();
-  }, combatScene)) {
+  if (ui.handleKeyboard(combatKey, state, combatScene)) {
     event.preventDefault();
   }
 });

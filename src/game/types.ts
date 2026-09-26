@@ -53,12 +53,23 @@ export interface CombatState {
   enemyUnits: Unit[];
   turnOrder: Unit[];
   turnIndex: number;
-  log: string[];
+  log: CombatLogEntry[];
   selectedAction: 'attack' | 'special' | null;
   selectedTargetId: string | null;
   pendingPlayerUnitId: string | null;
   lastRoll: { attackerId: string; targetId: string; roll: DiceRollResult; damage: number } | null;
 }
+
+/**
+ * A log line kept as data (translation key + params) so it can be re-rendered
+ * in the current language. A `{ nameKey }` param resolves to a unit name.
+ */
+export interface CombatLogEntry {
+  key: string;
+  params?: Record<string, LogParamValue>;
+}
+
+export type LogParamValue = string | number | { nameKey: string };
 
 export interface GameState {
   phase: GamePhase;
@@ -69,7 +80,6 @@ export interface GameState {
   deployment: DeploymentState | null;
   profile: PlayerProfile;
   runXpGained: number;
-  message: string;
 }
 
 export interface DiceRollResult {
@@ -83,7 +93,6 @@ export interface SkillResult {
   damage?: number;
   heal?: number;
   selfDamage?: number;
-  summon?: UnitRole;
   diceRoll?: DiceRollResult;
   logKey: string;
   logParams?: Record<string, string | number>;
