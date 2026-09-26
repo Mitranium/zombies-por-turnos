@@ -87,6 +87,7 @@ export function updateParticles(parts: Particle[], dt: number): Particle[] {
     mat.opacity = Math.max(0, p.life * 2);
     if (p.life <= 0) {
       p.mesh.parent?.remove(p.mesh);
+      p.mesh.geometry.dispose();
       mat.dispose();
       return false;
     }

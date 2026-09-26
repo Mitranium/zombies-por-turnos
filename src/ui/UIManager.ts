@@ -1,6 +1,7 @@
 import type { GameState, Unit } from '../game/types';
 import { getPlayerSquad } from '../game/state';
 import { getActionCard, ROLE_THEME } from './combatActions';
+import { rollEventKey } from '../combat/dice';
 import { CombatDiceDisplay } from './CombatDiceDisplay';
 import type { CombatScene } from '../combat/CombatScene';
 import { t } from '../i18n/strings';
@@ -399,8 +400,7 @@ export class UIManager {
 
     if (combat.lastRoll) {
       const r = combat.lastRoll;
-      const key = `${r.attackerId}:${r.targetId}:${r.roll.rolls.join(',')}:${r.damage}`;
-      this.diceDisplay.syncRoll(key, r.roll, r.damage, state.lang);
+      this.diceDisplay.syncRoll(rollEventKey(r), r.roll, r.damage, state.lang);
     } else if (isPlayerTurn && !this.diceDisplay.isBusy()) {
       const previewDice = combat.selectedAction === 'special'
         ? getActionCard(current.role, 'special', state.lang).dice ?? '+HP'

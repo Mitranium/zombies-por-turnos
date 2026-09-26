@@ -312,7 +312,7 @@ function recordDiceRoll(
   targetId: string,
   result: { damage?: number; diceRoll?: DiceRollResult },
 ): void {
-  if (result.diceRoll && result.damage) {
+  if (result.diceRoll && result.damage !== undefined) {
     combat.lastRoll = { attackerId, targetId, roll: result.diceRoll, damage: result.damage };
     playSfx('dice');
   }
@@ -398,7 +398,12 @@ function clearSelection(combat: CombatState): void {
 }
 
 export function advanceCombatTurn(state: GameState): void {
-  if (!state.combat || combatScene?.animating) return;
+  if (!state.combat) return;
+  if (combatScene?.animating) {
+    // Never drop a turn: retry as soon as the running animation/dice settle.
+    combatScene.whenIdle(() => advanceCombatTurn(state));
+    return;
+  }
   stepCombatTurn(state);
 }
 
@@ -431,6 +436,9 @@ function stepCombatTurn(state: GameState): void {
     }
     emit(state);
   }
+
+  // Safety valve exhausted (should be unreachable): keep the UI in sync.
+  emit(state);
 }
 
 function runEnemyTurn(state: GameState, unit: Unit): AnimAction {

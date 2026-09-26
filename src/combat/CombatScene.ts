@@ -16,7 +16,7 @@ import {
   updateParticles,
   updatePopups,
 } from './animations';
-import { diceLabelForRole } from './dice';
+import { diceLabelForRole, rollEventKey } from './dice';
 import { t } from '../i18n/strings';
 import { ROLE_THEME } from '../ui/combatActions';
 import { buildCombatScenery, type CombatScenery } from './scenery';
@@ -32,6 +32,7 @@ import {
 
 const ZOMBIE_SKIN = 0x6a8a5a;
 const OUTLINE_COLOR = 0x100d0a;
+const HEAL_GLOW_HEX = 0x44cc88;
 const NAMEPLATE_SCALE_X = 1.22;
 const NAMEPLATE_SCALE_Y = 0.42;
 const NAMEPLATE_Y = 1.98;
@@ -47,12 +48,46 @@ interface UnitVisual {
   hpFill: THREE.Mesh;
   hpBg: THREE.Mesh;
   nameplate: THREE.Sprite;
+  nameplateKey: string;
   shadow: THREE.Mesh;
   targetRing: THREE.Mesh;
   unitId: string;
   basePos: THREE.Vector3;
   dying: boolean;
   deathAnim: DeathAnim | null;
+}
+
+/** Free every geometry, material and texture owned by an object subtree. */
+function disposeObject3D(root: THREE.Object3D): void {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
+  root.traverse((child) => {
+    if (!(child instanceof THREE.Mesh) && !(child instanceof THREE.Line) && !(child instanceof THREE.Sprite)) return;
+    if (child instanceof THREE.Mesh || child instanceof THREE.Line) geometries.add(child.geometry);
+    const list = Array.isArray(child.material) ? child.material : [child.material];
+    for (const material of list) materials.add(material);
+  });
+  for (const geometry of geometries) geometry.dispose();
+  for (const material of materials) {
+    for (const value of Object.values(material)) {
+      if (value instanceof THREE.Texture) value.dispose();
+    }
+    material.dispose();
+  }
+}
+
+interface EmissiveBase {
+  hex: number;
+  intensity: number;
+}
+
+/** Materials are per-character; remember their authored glow so flashes/heals can restore it. */
+function emissiveBase(material: THREE.MeshStandardMaterial): EmissiveBase {
+  const data = material.userData as { emissiveBase?: EmissiveBase };
+  if (!data.emissiveBase) {
+    data.emissiveBase = { hex: material.emissive.getHex(), intensity: material.emissiveIntensity };
+  }
+  return data.emissiveBase;
 }
 
 function makeNameplateTexture(name: string, hp: number, maxHp: number, die: string, roleCss: string): THREE.CanvasTexture {
@@ -87,6 +122,10 @@ function makeNameplateTexture(name: string, hp: number, maxHp: number, die: stri
   const tex = new THREE.CanvasTexture(canvas);
   tex.needsUpdate = true;
   return tex;
+}
+
+function nameplateSignature(unit: Unit, lang: Lang): string {
+  return `${t(unit.nameKey, lang)}|${unit.hp}/${unit.maxHp}|${diceLabelForRole(unit.role)}|${ROLE_THEME[unit.role].css}`;
 }
 
 function mat(color: number, rough = 0.7, metal = 0.1): THREE.MeshStandardMaterial {
@@ -417,6 +456,8 @@ export class CombatScene {
   private lastRollKey = '';
   private activeAnim: ActiveCombatAnim | null = null;
   private onAnimComplete: (() => void) | null = null;
+  private animQueue: Array<{ anim: ActiveCombatAnim; onComplete: () => void }> = [];
+  private idleWaiters: Array<() => void> = [];
   private particles: Particle[] = [];
   private cameraBase = new THREE.Vector3(0, 3.8, 10);
   private readonly baseFov = 40;
@@ -437,33 +478,67 @@ export class CombatScene {
     return this.isAnimating || this.diceRig.isRolling();
   }
 
-  playHit(attackerId: string, targetId: string, onComplete: () => void): void {
-    this.activeAnim = createHitAnim(attackerId, targetId);
-    this.onAnimComplete = onComplete;
-    this.isAnimating = true;
-    this.shakeIntensity = 0.12;
-    this.punchIntensity = 1;
-    const atk = this.unitVisuals.get(attackerId);
-    const tgt = this.unitVisuals.get(targetId);
-    if (atk && tgt) {
-      const mid = atk.basePos.clone().lerp(tgt.basePos, 0.5);
-      mid.y = 1;
-      this.particles.push(...spawnHitParticles(this.scene, mid));
-      const burstPos = tgt.basePos.clone();
-      burstPos.y = 1.5;
-      this.popups.push(spawnComicBurst(this.scene, burstPos, this.lastLang));
+  /** Run `callback` once no combat animation or dice roll is in flight. */
+  whenIdle(callback: () => void): void {
+    if (!this.animating) {
+      callback();
+      return;
     }
+    this.idleWaiters.push(callback);
+  }
+
+  playHit(attackerId: string, targetId: string, onComplete: () => void): void {
+    this.enqueueAnim(createHitAnim(attackerId, targetId), onComplete);
   }
 
   playHeal(healerId: string, onComplete: () => void): void {
-    this.activeAnim = createHealAnim(healerId);
-    this.onAnimComplete = onComplete;
+    this.enqueueAnim(createHealAnim(healerId), onComplete);
+  }
+
+  private enqueueAnim(anim: ActiveCombatAnim, onComplete: () => void): void {
+    this.animQueue.push({ anim, onComplete });
     this.isAnimating = true;
-    const healer = this.unitVisuals.get(healerId);
-    if (healer) {
-      const pos = healer.basePos.clone();
+    this.pumpAnims();
+  }
+
+  private pumpAnims(): void {
+    if (this.activeAnim || !this.animQueue.length) return;
+    const next = this.animQueue.shift();
+    if (!next) return;
+    this.activeAnim = next.anim;
+    this.onAnimComplete = next.onComplete;
+    this.isAnimating = true;
+
+    const anim = next.anim;
+    const atk = this.unitVisuals.get(anim.attackerId);
+    const tgt = this.unitVisuals.get(anim.targetId);
+    if (anim.type === 'hit') {
+      this.shakeIntensity = 0.12;
+      this.punchIntensity = 1;
+      if (atk && tgt) {
+        const mid = atk.basePos.clone().lerp(tgt.basePos, 0.5);
+        mid.y = 1;
+        this.particles.push(...spawnHitParticles(this.scene, mid));
+        const burstPos = tgt.basePos.clone();
+        burstPos.y = 1.5;
+        this.popups.push(spawnComicBurst(this.scene, burstPos, this.lastLang));
+      }
+    } else if (atk) {
+      const pos = atk.basePos.clone();
       pos.y = 1;
       this.particles.push(...spawnHealParticles(this.scene, pos));
+    }
+  }
+
+  private flushIdleWaiters(): void {
+    if (this.animating || !this.idleWaiters.length) return;
+    const waiters = this.idleWaiters.splice(0);
+    for (const waiter of waiters) {
+      if (this.animating) {
+        this.idleWaiters.push(waiter);
+        continue;
+      }
+      waiter();
     }
   }
 
@@ -765,21 +840,24 @@ export class CombatScene {
 
     if (this.deploymentHighlight) this.deploymentHighlight.visible = false;
 
-    if (combat.lastRoll) {
-      const key = `${combat.lastRoll.attackerId}:${combat.lastRoll.targetId}:${combat.lastRoll.roll.rolls.join(',')}`;
+    const lastRoll = combat.lastRoll;
+    if (lastRoll) {
+      const key = rollEventKey(lastRoll);
       if (key !== this.lastRollKey) {
         this.lastRollKey = key;
-        const attacker = fullUnits.find((u) => u.id === combat.lastRoll!.attackerId);
+        const attacker = fullUnits.find((u) => u.id === lastRoll.attackerId);
         const colorHex = attacker ? ROLE_THEME[attacker.role]?.hex ?? 0xd8d8d8 : 0xd8d8d8;
-        this.diceRig.roll(combat.lastRoll.roll, colorHex);
+        this.diceRig.roll(lastRoll.roll, colorHex);
       }
+    } else {
+      // No roll in flight: clear the key so an identical future roll re-animates.
+      this.lastRollKey = '';
     }
   }
 
   private removeVisual(id: string, vis: UnitVisual): void {
     this.scene.remove(vis.group);
-    vis.nameplate.material.map?.dispose();
-    vis.nameplate.material.dispose();
+    disposeObject3D(vis.group);
     this.unitVisuals.delete(id);
   }
 
@@ -848,6 +926,7 @@ export class CombatScene {
       hpFill,
       hpBg,
       nameplate,
+      nameplateKey: nameplateSignature(unit, lang),
       shadow,
       targetRing,
       unitId: unit.id,
@@ -858,6 +937,10 @@ export class CombatScene {
   }
 
   private updateNameplate(vis: UnitVisual, unit: Unit, lang: Lang): void {
+    const signature = nameplateSignature(unit, lang);
+    if (signature === vis.nameplateKey) return;
+    vis.nameplateKey = signature;
+
     const old = vis.nameplate.material as THREE.SpriteMaterial;
     old.map?.dispose();
     old.dispose();
@@ -890,7 +973,23 @@ export class CombatScene {
     vis.characterGroup.traverse((child) => {
       if (child instanceof THREE.Mesh && !child.userData.isOutline) {
         const m = child.material as THREE.MeshStandardMaterial;
-        if (m.emissive) m.emissiveIntensity = intensity > 0 ? 0.5 + intensity : 0.06;
+        if (!m.emissive) return;
+        const base = emissiveBase(m);
+        m.emissive.setHex(base.hex);
+        m.emissiveIntensity = intensity > 0 ? 0.5 + intensity : base.intensity;
+      }
+    });
+  }
+
+  private applyHealGlow(unitId: string, pulse: number): void {
+    const vis = this.unitVisuals.get(unitId);
+    if (!vis) return;
+    vis.characterGroup.traverse((child) => {
+      if (child instanceof THREE.Mesh && !child.userData.isOutline) {
+        const m = child.material as THREE.MeshStandardMaterial;
+        if (!m.emissive) return;
+        m.emissive.setHex(HEAL_GLOW_HEX);
+        m.emissiveIntensity = 0.1 + pulse * 0.3;
       }
     });
   }
@@ -1003,16 +1102,7 @@ export class CombatScene {
         const pulse = Math.sin(animT * Math.PI);
         atk.characterGroup.position.y = pulse * 0.15;
         atk.characterGroup.scale.setScalar(1 + pulse * 0.05);
-        this.applyHitFlash(atk.unitId, 0);
-        atk.characterGroup.traverse((child) => {
-          if (child instanceof THREE.Mesh && !child.userData.isOutline) {
-            const m = child.material as THREE.MeshStandardMaterial;
-            if (m.emissive) {
-              m.emissive.setHex(0x44cc88);
-              m.emissiveIntensity = 0.1 + pulse * 0.3;
-            }
-          }
-        });
+        this.applyHealGlow(atk.unitId, pulse);
       }
 
       if (this.activeAnim.elapsed >= this.activeAnim.duration) {
@@ -1035,6 +1125,9 @@ export class CombatScene {
           const cb = this.onAnimComplete;
           this.onAnimComplete = null;
           cb?.();
+          this.pumpAnims();
+          this.isAnimating = this.activeAnim !== null || this.animQueue.length > 0;
+          this.flushIdleWaiters();
         }
       }
     }
@@ -1043,6 +1136,8 @@ export class CombatScene {
       vis.hpBg.lookAt(this.camera.position);
       vis.hpFill.lookAt(this.camera.position);
     }
+
+    this.flushIdleWaiters();
   }
 
   render(): void {
@@ -1050,8 +1145,35 @@ export class CombatScene {
   }
 
   dispose(): void {
+    for (const [id, vis] of [...this.unitVisuals]) this.removeVisual(id, vis);
+
+    for (const particle of this.particles) {
+      particle.mesh.parent?.remove(particle.mesh);
+      particle.mesh.geometry.dispose();
+      (particle.mesh.material as THREE.Material).dispose();
+    }
+    this.particles = [];
+
+    for (const popup of this.popups) {
+      popup.mesh.parent?.remove(popup.mesh);
+      const material = popup.mesh.material as THREE.SpriteMaterial;
+      material.map?.dispose();
+      material.dispose();
+    }
+    this.popups = [];
+
+    this.scene.remove(this.hexGridGroup);
+    disposeObject3D(this.hexGridGroup);
+    this.hexTiles.clear();
+
+    this.animQueue = [];
+    this.activeAnim = null;
+    this.onAnimComplete = null;
+    this.idleWaiters = [];
+
     this.scenery.dispose();
     this.diceRig.dispose();
     this.renderer.dispose();
+    this.renderer.forceContextLoss();
   }
 }

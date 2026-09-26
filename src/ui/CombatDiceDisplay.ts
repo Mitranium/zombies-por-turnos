@@ -43,13 +43,15 @@ export class CombatDiceDisplay {
 
   hide(): void {
     this.phase = 'hidden';
+    this.rollKey = '';
     this.el.classList.add('hidden');
+    this.el.classList.remove('preview-mode', 'rolling-mode', 'result');
   }
 
   setPreview(formula: string, lang: Lang): void {
     if (this.phase === 'rolling') return;
     this.phase = 'preview';
-    this.el.classList.remove('hidden', 'result');
+    this.el.classList.remove('hidden', 'result', 'rolling-mode');
     this.el.classList.add('preview-mode');
     this.totalEl.style.display = 'none';
     this.damageEl.style.display = 'none';
@@ -101,9 +103,7 @@ export class CombatDiceDisplay {
 
     this.resultTimer += dt;
     if (this.resultTimer > 2.2) {
-      this.phase = 'hidden';
-      this.el.classList.add('hidden');
-      this.el.classList.remove('result');
+      this.hide();
     }
   }
 

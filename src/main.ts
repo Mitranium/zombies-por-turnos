@@ -15,6 +15,10 @@ import { combatKeyFromEvent } from './ui/combatKeyboard';
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 if (!canvas) throw new Error('Canvas not found');
 
+/** Cap the frame delta so a backgrounded tab can't fast-forward timers on return. */
+const MAX_FRAME_DT = 0.1;
+const RESIZE_REFRESH_DELAY_MS = 120;
+
 let state: GameState = createInitialState(
   (navigator.language.startsWith('es') ? 'es' : 'en') as 'en' | 'es',
 );
@@ -23,13 +27,20 @@ const combatScene = new CombatScene(canvas);
 const ui = new UIManager('ui-root');
 setCombatScene(combatScene);
 
+let refreshTimer: number | undefined;
+
+function scheduleRefresh(): void {
+  window.clearTimeout(refreshTimer);
+  refreshTimer = window.setTimeout(refresh, RESIZE_REFRESH_DELAY_MS);
+}
+
 function resize(): void {
   const width = window.innerWidth;
   const height = window.innerHeight;
   canvas.width = width;
   canvas.height = height;
   combatScene.resize(width, height);
-  refresh();
+  scheduleRefresh();
 }
 
 function refresh(): void {
@@ -97,15 +108,22 @@ window.addEventListener('keydown', (event) => {
 window.addEventListener('resize', resize);
 
 let last = performance.now();
+let frameId = 0;
 function loop(now: number): void {
-  const dt = (now - last) / 1000;
+  const dt = Math.min((now - last) / 1000, MAX_FRAME_DT);
   last = now;
   combatScene.update(dt);
   ui.tickCombatDice(dt, state);
   combatScene.render();
-  requestAnimationFrame(loop);
+  frameId = requestAnimationFrame(loop);
 }
+
+window.addEventListener('pagehide', () => {
+  window.clearTimeout(refreshTimer);
+  cancelAnimationFrame(frameId);
+  combatScene.dispose();
+});
 
 resize();
 refresh();
-requestAnimationFrame(loop);
+frameId = requestAnimationFrame(loop);
