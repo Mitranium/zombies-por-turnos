@@ -4,7 +4,6 @@ type SfxType =
   | 'heal'
   | 'death'
   | 'claim'
-  | 'phase'
   | 'combat'
   | 'dice'
   | 'special'
@@ -12,6 +11,7 @@ type SfxType =
   | 'wave';
 
 let ctx: AudioContext | null = null;
+let noiseBuffer: AudioBuffer | null = null;
 
 function getCtx(): AudioContext | null {
   if (!ctx) {
@@ -23,6 +23,19 @@ function getCtx(): AudioContext | null {
   }
   if (ctx.state === 'suspended') void ctx.resume();
   return ctx;
+}
+
+/** One shared second of white noise; every noise effect plays a slice of it. */
+function getNoiseBuffer(audio: AudioContext): AudioBuffer {
+  if (!noiseBuffer || noiseBuffer.sampleRate !== audio.sampleRate) {
+    const frames = audio.sampleRate;
+    noiseBuffer = audio.createBuffer(1, frames, audio.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < frames; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+  }
+  return noiseBuffer;
 }
 
 function tone(
@@ -42,28 +55,25 @@ function tone(
   osc.frequency.setValueAtTime(freq, start);
   osc.frequency.exponentialRampToValueAtTime(Math.max(1, endFreq), start + duration);
   g.gain.setValueAtTime(gain, start);
+  g.gain.exponentialRampToValueAtTime(0.001, start + duration);
   osc.connect(g);
   g.connect(audio.destination);
+  osc.onended = () => {
+    osc.disconnect();
+    g.disconnect();
+  };
   osc.start(start);
-  g.gain.exponentialRampToValueAtTime(0.001, start + duration);
   osc.stop(start + duration);
 }
 
 function noise(duration: number, gain = 0.04, cutoff = 900, delay = 0): void {
   const audio = getCtx();
   if (!audio) return;
-  const frames = Math.max(1, Math.floor(audio.sampleRate * duration));
-  const buffer = audio.createBuffer(1, frames, audio.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < frames; i++) {
-    data[i] = (Math.random() * 2 - 1) * (1 - i / frames);
-  }
-
   const source = audio.createBufferSource();
   const filter = audio.createBiquadFilter();
   const g = audio.createGain();
   const start = audio.currentTime + delay;
-  source.buffer = buffer;
+  source.buffer = getNoiseBuffer(audio);
   filter.type = 'lowpass';
   filter.frequency.value = cutoff;
   g.gain.setValueAtTime(gain, start);
@@ -71,7 +81,13 @@ function noise(duration: number, gain = 0.04, cutoff = 900, delay = 0): void {
   source.connect(filter);
   filter.connect(g);
   g.connect(audio.destination);
+  source.onended = () => {
+    source.disconnect();
+    filter.disconnect();
+    g.disconnect();
+  };
   source.start(start);
+  source.stop(start + duration);
 }
 
 export function playSfx(type: SfxType): void {
@@ -94,9 +110,6 @@ export function playSfx(type: SfxType): void {
     case 'claim':
       tone(300, 0.1, 'triangle', 0.07);
       tone(450, 0.15, 'triangle', 0.06);
-      break;
-    case 'phase':
-      tone(220, 0.08, 'sine', 0.05);
       break;
     case 'combat':
       tone(72, 0.24, 'sawtooth', 0.09, 0, 46);

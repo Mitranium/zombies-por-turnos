@@ -1,4 +1,4 @@
-import type { UnitRole } from '../game/types';
+import type { DiceRollResult, UnitRole } from '../game/types';
 
 export interface DiceConfig {
   count: number;
@@ -6,11 +6,21 @@ export interface DiceConfig {
   bonus: number;
 }
 
-export interface DiceRoll {
-  rolls: number[];
-  total: number;
-  sides: number;
-  bonus: number;
+export type DiceRoll = DiceRollResult;
+
+export interface RollEvent {
+  attackerId: string;
+  targetId: string;
+  roll: DiceRoll;
+  damage: number;
+}
+
+/**
+ * Stable identity of a dice event. Shared by the 3D dice rig and the text
+ * overlay so both animate exactly once per real roll.
+ */
+export function rollEventKey(event: RollEvent): string {
+  return `${event.attackerId}:${event.targetId}:${event.roll.rolls.join(',')}:${event.damage}`;
 }
 
 const ROLE_DICE: Record<UnitRole, DiceConfig> = {

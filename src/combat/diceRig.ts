@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { DiceRollResult } from '../game/types';
+import { canvasTexture } from '../util/canvas';
 import { easeOutBack, easeOutQuad } from './animations';
 
 interface FaceInfo {
@@ -131,18 +132,13 @@ function shapeForSides(sides: number): DieShape {
 
 function makeNumberTexture(n: number): THREE.CanvasTexture {
   const size = 96;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-  ctx.font = `900 ${Math.round(size * 0.56)}px 'Segoe UI', sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#1c1710';
-  ctx.fillText(String(n), size / 2, size / 2 + 2);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.needsUpdate = true;
-  return tex;
+  return canvasTexture(size, size, (ctx) => {
+    ctx.font = `900 ${Math.round(size * 0.56)}px 'Segoe UI', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#1c1710';
+    ctx.fillText(String(n), size / 2, size / 2 + 2);
+  });
 }
 
 const GRAVITY = -13;

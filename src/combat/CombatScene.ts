@@ -16,7 +16,9 @@ import {
   updateParticles,
   updatePopups,
 } from './animations';
-import { diceLabelForRole } from './dice';
+import { diceLabelForRole, rollEventKey } from './dice';
+import { canvasTexture } from '../util/canvas';
+import { hashStr, mulberry32, pickFrom } from '../util/random';
 import { t } from '../i18n/strings';
 import { ROLE_THEME } from '../ui/combatActions';
 import { buildCombatScenery, type CombatScenery } from './scenery';
@@ -32,6 +34,11 @@ import {
 
 const ZOMBIE_SKIN = 0x6a8a5a;
 const OUTLINE_COLOR = 0x100d0a;
+const HEAL_GLOW_HEX = 0x44cc88;
+
+/** Honor the OS-level motion preference: skip camera shake/punch effects. */
+const REDUCED_MOTION = typeof window.matchMedia === 'function'
+  && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const NAMEPLATE_SCALE_X = 1.22;
 const NAMEPLATE_SCALE_Y = 0.42;
 const NAMEPLATE_Y = 1.98;
@@ -47,6 +54,7 @@ interface UnitVisual {
   hpFill: THREE.Mesh;
   hpBg: THREE.Mesh;
   nameplate: THREE.Sprite;
+  nameplateKey: string;
   shadow: THREE.Mesh;
   targetRing: THREE.Mesh;
   unitId: string;
@@ -55,38 +63,82 @@ interface UnitVisual {
   deathAnim: DeathAnim | null;
 }
 
+/** Free every geometry, material and texture owned by an object subtree. */
+function disposeObject3D(root: THREE.Object3D): void {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
+  root.traverse((child) => {
+    if (!(child instanceof THREE.Mesh) && !(child instanceof THREE.Line) && !(child instanceof THREE.Sprite)) return;
+    if (child instanceof THREE.Mesh || child instanceof THREE.Line) geometries.add(child.geometry);
+    const list = Array.isArray(child.material) ? child.material : [child.material];
+    for (const material of list) materials.add(material);
+  });
+  for (const geometry of geometries) geometry.dispose();
+  for (const material of materials) {
+    for (const value of Object.values(material)) {
+      if (value instanceof THREE.Texture) value.dispose();
+    }
+    material.dispose();
+  }
+}
+
+interface EmissiveBase {
+  hex: number;
+  intensity: number;
+}
+
+/** userData stamped on hex tiles so ray hits can be mapped back to a cell. */
+interface HexTileData {
+  hexCol: number;
+  hexRow: number;
+  hexSide: GridSide;
+}
+
+/** userData stamped on pickable unit meshes. */
+interface UnitPickData {
+  unitId?: string;
+  isOutline?: boolean;
+}
+
+/** Materials are per-character; remember their authored glow so flashes/heals can restore it. */
+function emissiveBase(material: THREE.MeshStandardMaterial): EmissiveBase {
+  const data = material.userData as { emissiveBase?: EmissiveBase };
+  if (!data.emissiveBase) {
+    data.emissiveBase = { hex: material.emissive.getHex(), intensity: material.emissiveIntensity };
+  }
+  return data.emissiveBase;
+}
+
 function makeNameplateTexture(name: string, hp: number, maxHp: number, die: string, roleCss: string): THREE.CanvasTexture {
-  const w = 280;
-  const h = 94;
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext('2d')!;
+  return canvasTexture(280, 94, (ctx) => {
+    const w = 280;
+    const h = 94;
 
-  ctx.fillStyle = 'rgba(5,5,8,0.96)';
-  ctx.beginPath();
-  ctx.roundRect(3, 3, w - 6, h - 6, 7);
-  ctx.fill();
-  ctx.strokeStyle = roleCss;
-  ctx.lineWidth = 3;
-  ctx.stroke();
+    ctx.fillStyle = 'rgba(5,5,8,0.96)';
+    ctx.beginPath();
+    ctx.roundRect(3, 3, w - 6, h - 6, 7);
+    ctx.fill();
+    ctx.strokeStyle = roleCss;
+    ctx.lineWidth = 3;
+    ctx.stroke();
 
-  ctx.fillStyle = '#f0f0e8';
-  ctx.font = '900 24px Segoe UI, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(name, w / 2, 31, w - 22);
+    ctx.fillStyle = '#f0f0e8';
+    ctx.font = '900 24px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(name, w / 2, 31, w - 22);
 
-  ctx.fillStyle = '#a8b0a0';
-  ctx.font = 'bold 15px Consolas, monospace';
-  ctx.fillText(`${hp} / ${maxHp}`, w / 2, 56);
+    ctx.fillStyle = '#a8b0a0';
+    ctx.font = 'bold 15px Consolas, monospace';
+    ctx.fillText(`${hp} / ${maxHp}`, w / 2, 56);
 
-  ctx.fillStyle = '#e8c95a';
-  ctx.font = 'bold 14px Consolas, monospace';
-  ctx.fillText(`⚀ ${die}`, w / 2, 80);
+    ctx.fillStyle = '#e8c95a';
+    ctx.font = 'bold 14px Consolas, monospace';
+    ctx.fillText(`⚀ ${die}`, w / 2, 80);
+  });
+}
 
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.needsUpdate = true;
-  return tex;
+function nameplateSignature(unit: Unit, lang: Lang): string {
+  return `${t(unit.nameKey, lang)}|${unit.hp}/${unit.maxHp}|${diceLabelForRole(unit.role)}|${ROLE_THEME[unit.role].css}`;
 }
 
 function mat(color: number, rough = 0.7, metal = 0.1): THREE.MeshStandardMaterial {
@@ -121,29 +173,6 @@ function addMesh(
   return m;
 }
 
-function hashStr(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return function () {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function pickFrom<T>(rnd: () => number, arr: T[]): T {
-  return arr[Math.floor(rnd() * arr.length) % arr.length];
-}
-
 function hexToCss(hex: number): string {
   return `#${hex.toString(16).padStart(6, '0')}`;
 }
@@ -154,34 +183,29 @@ const HAIR_TONES = [0x1c140f, 0x3a2418, 0x0f0f0f, 0x5a3a20, 0x7a7a7a];
 /** Small tiling canvas texture that adds worn/mottled character to a flat color via default box UVs. */
 function makeGrimeTexture(seed: number, baseHex: number, blotchAlpha = 0.22): THREE.CanvasTexture {
   const size = 64;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-  const rnd = mulberry32(seed);
-  ctx.fillStyle = hexToCss(baseHex);
-  ctx.fillRect(0, 0, size, size);
-  ctx.fillStyle = `rgba(0,0,0,${blotchAlpha})`;
-  for (let i = 0; i < 16; i++) {
-    const x = rnd() * size;
-    const y = rnd() * size;
-    const r = 2 + rnd() * 7;
-    ctx.beginPath();
-    ctx.ellipse(x, y, r, r * (0.5 + rnd() * 0.7), rnd() * Math.PI, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.fillStyle = 'rgba(255,255,255,0.07)';
-  for (let i = 0; i < 8; i++) {
-    const x = rnd() * size;
-    const y = rnd() * size;
-    const r = 1 + rnd() * 3;
-    ctx.beginPath();
-    ctx.ellipse(x, y, r, r, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.needsUpdate = true;
-  return tex;
+  return canvasTexture(size, size, (ctx) => {
+    const rnd = mulberry32(seed);
+    ctx.fillStyle = hexToCss(baseHex);
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = `rgba(0,0,0,${blotchAlpha})`;
+    for (let i = 0; i < 16; i++) {
+      const x = rnd() * size;
+      const y = rnd() * size;
+      const r = 2 + rnd() * 7;
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r * (0.5 + rnd() * 0.7), rnd() * Math.PI, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.07)';
+    for (let i = 0; i < 8; i++) {
+      const x = rnd() * size;
+      const y = rnd() * size;
+      const r = 1 + rnd() * 3;
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
 }
 
 function matTex(color: number, tex: THREE.Texture, rough = 0.6, metal = 0.06): THREE.MeshStandardMaterial {
@@ -417,6 +441,8 @@ export class CombatScene {
   private lastRollKey = '';
   private activeAnim: ActiveCombatAnim | null = null;
   private onAnimComplete: (() => void) | null = null;
+  private animQueue: Array<{ anim: ActiveCombatAnim; onComplete: () => void }> = [];
+  private idleWaiters: Array<() => void> = [];
   private particles: Particle[] = [];
   private cameraBase = new THREE.Vector3(0, 3.8, 10);
   private readonly baseFov = 40;
@@ -437,33 +463,67 @@ export class CombatScene {
     return this.isAnimating || this.diceRig.isRolling();
   }
 
-  playHit(attackerId: string, targetId: string, onComplete: () => void): void {
-    this.activeAnim = createHitAnim(attackerId, targetId);
-    this.onAnimComplete = onComplete;
-    this.isAnimating = true;
-    this.shakeIntensity = 0.12;
-    this.punchIntensity = 1;
-    const atk = this.unitVisuals.get(attackerId);
-    const tgt = this.unitVisuals.get(targetId);
-    if (atk && tgt) {
-      const mid = atk.basePos.clone().lerp(tgt.basePos, 0.5);
-      mid.y = 1;
-      this.particles.push(...spawnHitParticles(this.scene, mid));
-      const burstPos = tgt.basePos.clone();
-      burstPos.y = 1.5;
-      this.popups.push(spawnComicBurst(this.scene, burstPos, this.lastLang));
+  /** Run `callback` once no combat animation or dice roll is in flight. */
+  whenIdle(callback: () => void): void {
+    if (!this.animating) {
+      callback();
+      return;
     }
+    this.idleWaiters.push(callback);
+  }
+
+  playHit(attackerId: string, targetId: string, onComplete: () => void): void {
+    this.enqueueAnim(createHitAnim(attackerId, targetId), onComplete);
   }
 
   playHeal(healerId: string, onComplete: () => void): void {
-    this.activeAnim = createHealAnim(healerId);
-    this.onAnimComplete = onComplete;
+    this.enqueueAnim(createHealAnim(healerId), onComplete);
+  }
+
+  private enqueueAnim(anim: ActiveCombatAnim, onComplete: () => void): void {
+    this.animQueue.push({ anim, onComplete });
     this.isAnimating = true;
-    const healer = this.unitVisuals.get(healerId);
-    if (healer) {
-      const pos = healer.basePos.clone();
+    this.pumpAnims();
+  }
+
+  private pumpAnims(): void {
+    if (this.activeAnim || !this.animQueue.length) return;
+    const next = this.animQueue.shift();
+    if (!next) return;
+    this.activeAnim = next.anim;
+    this.onAnimComplete = next.onComplete;
+    this.isAnimating = true;
+
+    const anim = next.anim;
+    const atk = this.unitVisuals.get(anim.attackerId);
+    const tgt = this.unitVisuals.get(anim.targetId);
+    if (anim.type === 'hit') {
+      this.shakeIntensity = REDUCED_MOTION ? 0 : 0.12;
+      this.punchIntensity = REDUCED_MOTION ? 0 : 1;
+      if (atk && tgt) {
+        const mid = atk.basePos.clone().lerp(tgt.basePos, 0.5);
+        mid.y = 1;
+        this.particles.push(...spawnHitParticles(this.scene, mid));
+        const burstPos = tgt.basePos.clone();
+        burstPos.y = 1.5;
+        this.popups.push(spawnComicBurst(this.scene, burstPos, this.lastLang));
+      }
+    } else if (atk) {
+      const pos = atk.basePos.clone();
       pos.y = 1;
       this.particles.push(...spawnHealParticles(this.scene, pos));
+    }
+  }
+
+  private flushIdleWaiters(): void {
+    if (this.animating || !this.idleWaiters.length) return;
+    const waiters = this.idleWaiters.splice(0);
+    for (const waiter of waiters) {
+      if (this.animating) {
+        this.idleWaiters.push(waiter);
+        continue;
+      }
+      waiter();
     }
   }
 
@@ -562,45 +622,39 @@ export class CombatScene {
     const borderGeo = new THREE.BufferGeometry().setFromPoints(borderPoints);
 
     for (const side of ['player', 'enemy'] as GridSide[]) {
-      const fillColor = side === 'player' ? 0x3a5a78 : 0x5a3838;
-      const emissiveColor = side === 'player' ? 0x2a5070 : 0x502828;
-      const borderColor = side === 'player' ? 0x88c8f0 : 0xf08888;
+      // One material pair per side: 18 tiles share them instead of each tile
+      // allocating its own two materials.
+      const tileMaterial = new THREE.MeshStandardMaterial({
+        color: side === 'player' ? 0x3a5a78 : 0x5a3838,
+        transparent: true,
+        opacity: 0.72,
+        roughness: 0.75,
+        metalness: 0.08,
+        emissive: side === 'player' ? 0x2a5070 : 0x502828,
+        emissiveIntensity: 0.35,
+        depthWrite: false,
+      });
+      const borderMaterial = new THREE.LineBasicMaterial({
+        color: side === 'player' ? 0x88c8f0 : 0xf08888,
+        transparent: true,
+        opacity: 0.95,
+      });
 
       for (let row = 0; row < GRID_SIZE; row++) {
         for (let col = 0; col < GRID_SIZE; col++) {
           const pos = gridToWorld(col, row, side);
-          const tileGroup = new THREE.Group();
-          tileGroup.position.set(pos.x, 0, pos.z);
 
-          const tile = new THREE.Mesh(
-            geo,
-            new THREE.MeshStandardMaterial({
-              color: fillColor,
-              transparent: true,
-              opacity: 0.72,
-              roughness: 0.75,
-              metalness: 0.08,
-              emissive: emissiveColor,
-              emissiveIntensity: 0.35,
-              depthWrite: false,
-            }),
-          );
+          const tile = new THREE.Mesh(geo, tileMaterial);
           tile.rotation.x = -Math.PI / 2;
-          tile.position.y = 0.012;
+          tile.position.set(pos.x, 0.012, pos.z);
           tile.userData = { hexCol: col, hexRow: row, hexSide: side };
-          tileGroup.add(tile);
 
-          const border = new THREE.Line(
-            borderGeo,
-            new THREE.LineBasicMaterial({ color: borderColor, transparent: true, opacity: 0.95 }),
-          );
+          const border = new THREE.Line(borderGeo, borderMaterial);
           border.rotation.x = -Math.PI / 2;
-          border.position.y = 0.018;
-          tileGroup.add(border);
+          border.position.set(pos.x, 0.018, pos.z);
 
-          const key = `${side}:${col},${row}`;
-          this.hexTiles.set(key, tile);
-          this.hexGridGroup.add(tileGroup);
+          this.hexTiles.set(`${side}:${col},${row}`, tile);
+          this.hexGridGroup.add(tile, border);
         }
       }
     }
@@ -723,8 +777,8 @@ export class CombatScene {
     }
     const hits = this.raycaster.intersectObjects(meshes);
     if (!hits.length) return null;
-    const data = hits[0].object.userData;
-    return { col: data.hexCol as number, row: data.hexRow as number };
+    const data = hits[0].object.userData as HexTileData;
+    return { col: data.hexCol, row: data.hexRow };
   }
 
   syncCombat(combat: CombatState, lang: Lang): void {
@@ -765,21 +819,24 @@ export class CombatScene {
 
     if (this.deploymentHighlight) this.deploymentHighlight.visible = false;
 
-    if (combat.lastRoll) {
-      const key = `${combat.lastRoll.attackerId}:${combat.lastRoll.targetId}:${combat.lastRoll.roll.rolls.join(',')}`;
+    const lastRoll = combat.lastRoll;
+    if (lastRoll) {
+      const key = rollEventKey(lastRoll);
       if (key !== this.lastRollKey) {
         this.lastRollKey = key;
-        const attacker = fullUnits.find((u) => u.id === combat.lastRoll!.attackerId);
+        const attacker = fullUnits.find((u) => u.id === lastRoll.attackerId);
         const colorHex = attacker ? ROLE_THEME[attacker.role]?.hex ?? 0xd8d8d8 : 0xd8d8d8;
-        this.diceRig.roll(combat.lastRoll.roll, colorHex);
+        this.diceRig.roll(lastRoll.roll, colorHex);
       }
+    } else {
+      // No roll in flight: clear the key so an identical future roll re-animates.
+      this.lastRollKey = '';
     }
   }
 
   private removeVisual(id: string, vis: UnitVisual): void {
     this.scene.remove(vis.group);
-    vis.nameplate.material.map?.dispose();
-    vis.nameplate.material.dispose();
+    disposeObject3D(vis.group);
     this.unitVisuals.delete(id);
   }
 
@@ -848,6 +905,7 @@ export class CombatScene {
       hpFill,
       hpBg,
       nameplate,
+      nameplateKey: nameplateSignature(unit, lang),
       shadow,
       targetRing,
       unitId: unit.id,
@@ -858,6 +916,10 @@ export class CombatScene {
   }
 
   private updateNameplate(vis: UnitVisual, unit: Unit, lang: Lang): void {
+    const signature = nameplateSignature(unit, lang);
+    if (signature === vis.nameplateKey) return;
+    vis.nameplateKey = signature;
+
     const old = vis.nameplate.material as THREE.SpriteMaterial;
     old.map?.dispose();
     old.dispose();
@@ -890,7 +952,23 @@ export class CombatScene {
     vis.characterGroup.traverse((child) => {
       if (child instanceof THREE.Mesh && !child.userData.isOutline) {
         const m = child.material as THREE.MeshStandardMaterial;
-        if (m.emissive) m.emissiveIntensity = intensity > 0 ? 0.5 + intensity : 0.06;
+        if (!m.emissive) return;
+        const base = emissiveBase(m);
+        m.emissive.setHex(base.hex);
+        m.emissiveIntensity = intensity > 0 ? 0.5 + intensity : base.intensity;
+      }
+    });
+  }
+
+  private applyHealGlow(unitId: string, pulse: number): void {
+    const vis = this.unitVisuals.get(unitId);
+    if (!vis) return;
+    vis.characterGroup.traverse((child) => {
+      if (child instanceof THREE.Mesh && !child.userData.isOutline) {
+        const m = child.material as THREE.MeshStandardMaterial;
+        if (!m.emissive) return;
+        m.emissive.setHex(HEAL_GLOW_HEX);
+        m.emissiveIntensity = 0.1 + pulse * 0.3;
       }
     });
   }
@@ -904,7 +982,7 @@ export class CombatScene {
     for (const vis of this.unitVisuals.values()) meshes.push(...vis.pickTargets);
     const hits = this.raycaster.intersectObjects(meshes);
     if (!hits.length) return null;
-    return (hits[0].object.userData.unitId as string) ?? null;
+    return (hits[0].object.userData as UnitPickData).unitId ?? null;
   }
 
   private updateDeathAnims(dt: number): void {
@@ -1003,16 +1081,7 @@ export class CombatScene {
         const pulse = Math.sin(animT * Math.PI);
         atk.characterGroup.position.y = pulse * 0.15;
         atk.characterGroup.scale.setScalar(1 + pulse * 0.05);
-        this.applyHitFlash(atk.unitId, 0);
-        atk.characterGroup.traverse((child) => {
-          if (child instanceof THREE.Mesh && !child.userData.isOutline) {
-            const m = child.material as THREE.MeshStandardMaterial;
-            if (m.emissive) {
-              m.emissive.setHex(0x44cc88);
-              m.emissiveIntensity = 0.1 + pulse * 0.3;
-            }
-          }
-        });
+        this.applyHealGlow(atk.unitId, pulse);
       }
 
       if (this.activeAnim.elapsed >= this.activeAnim.duration) {
@@ -1035,6 +1104,9 @@ export class CombatScene {
           const cb = this.onAnimComplete;
           this.onAnimComplete = null;
           cb?.();
+          this.pumpAnims();
+          this.isAnimating = this.activeAnim !== null || this.animQueue.length > 0;
+          this.flushIdleWaiters();
         }
       }
     }
@@ -1043,6 +1115,8 @@ export class CombatScene {
       vis.hpBg.lookAt(this.camera.position);
       vis.hpFill.lookAt(this.camera.position);
     }
+
+    this.flushIdleWaiters();
   }
 
   render(): void {
@@ -1050,8 +1124,35 @@ export class CombatScene {
   }
 
   dispose(): void {
+    for (const [id, vis] of [...this.unitVisuals]) this.removeVisual(id, vis);
+
+    for (const particle of this.particles) {
+      particle.mesh.parent?.remove(particle.mesh);
+      particle.mesh.geometry.dispose();
+      (particle.mesh.material as THREE.Material).dispose();
+    }
+    this.particles = [];
+
+    for (const popup of this.popups) {
+      popup.mesh.parent?.remove(popup.mesh);
+      const material = popup.mesh.material as THREE.SpriteMaterial;
+      material.map?.dispose();
+      material.dispose();
+    }
+    this.popups = [];
+
+    this.scene.remove(this.hexGridGroup);
+    disposeObject3D(this.hexGridGroup);
+    this.hexTiles.clear();
+
+    this.animQueue = [];
+    this.activeAnim = null;
+    this.onAnimComplete = null;
+    this.idleWaiters = [];
+
     this.scenery.dispose();
     this.diceRig.dispose();
     this.renderer.dispose();
+    this.renderer.forceContextLoss();
   }
 }

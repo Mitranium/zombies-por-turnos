@@ -10,10 +10,15 @@ import {
 import { CombatScene } from './combat/CombatScene';
 import { UIManager } from './ui/UIManager';
 import { unlockAudio } from './audio/sfx';
+import { stopBgMusic } from './audio/music';
 import { combatKeyFromEvent } from './ui/combatKeyboard';
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 if (!canvas) throw new Error('Canvas not found');
+
+/** Cap the frame delta so a backgrounded tab can't fast-forward timers on return. */
+const MAX_FRAME_DT = 0.1;
+const RESIZE_REFRESH_DELAY_MS = 120;
 
 let state: GameState = createInitialState(
   (navigator.language.startsWith('es') ? 'es' : 'en') as 'en' | 'es',
@@ -23,24 +28,26 @@ const combatScene = new CombatScene(canvas);
 const ui = new UIManager('ui-root');
 setCombatScene(combatScene);
 
+let refreshTimer: number | undefined;
+
+function scheduleRefresh(): void {
+  window.clearTimeout(refreshTimer);
+  refreshTimer = window.setTimeout(refresh, RESIZE_REFRESH_DELAY_MS);
+}
+
 function resize(): void {
   const width = window.innerWidth;
   const height = window.innerHeight;
   canvas.width = width;
   canvas.height = height;
   combatScene.resize(width, height);
-  refresh();
+  scheduleRefresh();
 }
 
 function refresh(): void {
-  ui.render(
-    state,
-    (next) => {
-      state = next;
-      refresh();
-    },
-    combatScene,
-  );
+  // Render is driven exclusively by the game listener (see setGameListener):
+  // every state mutation emits exactly one change.
+  ui.render(state, combatScene);
 
   if (state.phase === 'combat' && state.combat) {
     combatScene.syncCombat(state.combat, state.lang);
@@ -66,30 +73,28 @@ canvas.addEventListener('pointerup', (event) => {
     const unitId = combatScene.pickUnit(canvas, event.clientX, event.clientY);
     if (unitId) {
       selectDeploymentUnit(state, unitId);
-      refresh();
       return;
     }
     const cell = combatScene.pickHexCell(canvas, event.clientX, event.clientY, 'player');
     if (cell) {
       placeDeploymentUnit(state, cell.col, cell.row);
-      refresh();
     }
     return;
   }
   if (state.phase !== 'combat' || !state.combat?.selectedAction) return;
-  const unitId = combatScene.pickUnit(canvas, event.clientX, event.clientY);
-  if (!unitId) return;
-  selectCombatTarget(state, unitId);
-  refresh();
+  const targetId = combatScene.pickUnit(canvas, event.clientX, event.clientY);
+  if (!targetId) return;
+  selectCombatTarget(state, targetId);
 });
 
 window.addEventListener('keydown', (event) => {
   const combatKey = combatKeyFromEvent(event);
   if (!combatKey) return;
-  if (ui.handleKeyboard(combatKey, state, (next) => {
-    state = next;
-    refresh();
-  }, combatScene)) {
+  // A focused button owns Enter/Space: let the browser activate it instead of
+  // running the global confirm action behind its back.
+  const target = event.target;
+  if (combatKey === 'confirm' && target instanceof HTMLElement && target.closest('button')) return;
+  if (ui.handleKeyboard(combatKey, state, combatScene)) {
     event.preventDefault();
   }
 });
@@ -97,15 +102,23 @@ window.addEventListener('keydown', (event) => {
 window.addEventListener('resize', resize);
 
 let last = performance.now();
+let frameId = 0;
 function loop(now: number): void {
-  const dt = (now - last) / 1000;
+  const dt = Math.min((now - last) / 1000, MAX_FRAME_DT);
   last = now;
   combatScene.update(dt);
   ui.tickCombatDice(dt, state);
   combatScene.render();
-  requestAnimationFrame(loop);
+  frameId = requestAnimationFrame(loop);
 }
+
+window.addEventListener('pagehide', () => {
+  window.clearTimeout(refreshTimer);
+  cancelAnimationFrame(frameId);
+  stopBgMusic();
+  combatScene.dispose();
+});
 
 resize();
 refresh();
-requestAnimationFrame(loop);
+frameId = requestAnimationFrame(loop);

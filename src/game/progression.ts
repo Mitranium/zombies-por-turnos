@@ -52,7 +52,12 @@ export function loadProfile(): PlayerProfile {
 }
 
 export function saveProfile(profile: PlayerProfile): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+  } catch {
+    // Storage may be full or blocked (private mode); losing persistence is
+    // preferable to breaking the combat flow mid-run.
+  }
 }
 
 export function xpForKill(role: UnitRole): number {

@@ -2,7 +2,7 @@ import type { Lang } from '../game/types';
 
 type StringTable = Record<string, { en: string; es: string }>;
 
-const STRINGS: StringTable = {
+const STRINGS = {
   'game.title': { en: 'Zombies por Turnos', es: 'Zombies por Turnos' },
   'game.eyebrow': { en: 'DEMO · TURN-BASED COMBAT', es: 'DEMO · COMBATE POR TURNOS' },
   'game.subtitle': {
@@ -78,8 +78,8 @@ const STRINGS: StringTable = {
     es: 'Zombi lento. Ataca al superviviente más cercano en la grilla. Común desde la ronda 1.',
   },
   'wiki.screamer.body': {
-    en: 'Stays in the back row. Each turn, 20% chance to call a shambler instead of attacking. Appears from round 2.',
-    es: 'Se queda en la retaguardia. En su turno, 20% de probabilidad de invocar un tambaleante en vez de atacar. Aparece desde la ronda 2.',
+    en: 'Stays in the back row. Each turn, {chance}% chance to call a shambler instead of attacking. Appears from round 2.',
+    es: 'Se queda en la retaguardia. En su turno, {chance}% de probabilidad de invocar un tambaleante en vez de atacar. Aparece desde la ronda 2.',
   },
   'wiki.ripper.body': {
     en: 'Very fast. Prefers back-row targets and hits hard. Usually the last enemy from round 3 onward.',
@@ -101,6 +101,13 @@ const STRINGS: StringTable = {
     es: '← → / WASD: elegir objetivo · Enter: confirmar · Esc: volver',
   },
   'combat.dice.damage': { en: 'DMG', es: 'DAÑO' },
+  'dice.heal': { en: '+HP', es: '+PV' },
+  'dice.unknown': { en: '?', es: '?' },
+  'title.levelShort': { en: 'Lv.{level}', es: 'Niv.{level}' },
+  'squad.levelLine': {
+    en: '{level}/{max} · +{hp} HP · +{spd} SPD',
+    es: '{level}/{max} · +{hp} PV · +{spd} VEL',
+  },
 
   'combat.attack.title.athlete': { en: 'Strike', es: 'Golpe' },
   'combat.attack.title.medic': { en: 'Syringe', es: 'Jeringa' },
@@ -134,22 +141,39 @@ const STRINGS: StringTable = {
     es: 'Doble tajo salvaje: más daño pero recibís 2 de retroceso.',
   },
 
+  'log.roundStart': { en: 'Round {round}: {count} zombies', es: 'Ronda {round}: {count} zombis' },
   'log.hit': { en: '{attacker} hits {target} for {amount}', es: '{attacker} golpea a {target} por {amount}' },
+  'log.special': {
+    en: '{attacker} unleashes a special on {target} for {amount}',
+    es: '{attacker} desata un especial contra {target} por {amount}',
+  },
+  'log.counter': {
+    en: '{attacker} counters {target} for {amount}',
+    es: '{attacker} contraataca a {target} por {amount}',
+  },
+  'log.triage': {
+    en: '{attacker} patches up the squad (+{amount} HP each)',
+    es: '{attacker} hace triaje al escuadrón (+{amount} PV a cada uno)',
+  },
   'log.heal': { en: '{attacker} heals {target} for {amount}', es: '{attacker} cura a {target} por {amount}' },
   'log.summon': { en: 'A shambler joins the fight!', es: '¡Un tambaleante se une a la pelea!' },
   'log.self': { en: '{attacker} takes {amount} recoil', es: '{attacker} recibe {amount} de retroceso' },
+  'log.xp': { en: '+{amount} XP', es: '+{amount} XP' },
 
   'end.defeat': { en: 'The squad fell.', es: 'El escuadrón cayó.' },
   'end.defeatSub': { en: 'Game over. Try to beat your best round.', es: 'Fin de la partida. Intentá superar tu mejor ronda.' },
-};
+} satisfies StringTable;
 
-export function t(key: string, lang: Lang, params?: Record<string, string | number>): string {
-  const entry = STRINGS[key];
+/** Every known translation key (dynamic keys such as `unit.${role}` still work). */
+export type StringKey = keyof typeof STRINGS;
+
+export function t(key: StringKey | (string & {}), lang: Lang, params?: Record<string, string | number>): string {
+  const entry = (STRINGS as StringTable)[key];
   if (!entry) return key;
   let text = entry[lang] ?? entry.en;
   if (params) {
     for (const [k, v] of Object.entries(params)) {
-      text = text.replace(`{${k}}`, String(v));
+      text = text.replaceAll(`{${k}}`, String(v));
     }
   }
   return text;
