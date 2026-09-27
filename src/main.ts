@@ -10,7 +10,7 @@ import {
 import { CombatScene } from './combat/CombatScene';
 import { UIManager } from './ui/UIManager';
 import { unlockAudio } from './audio/sfx';
-import { stopBgMusic } from './audio/music';
+import { isBgMusicPlaying, startBgMusic, stopBgMusic } from './audio/music';
 import { combatKeyFromEvent } from './ui/combatKeyboard';
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -112,11 +112,36 @@ function loop(now: number): void {
   frameId = requestAnimationFrame(loop);
 }
 
+let sceneDisposed = false;
+let musicWasPlaying = false;
+
 window.addEventListener('pagehide', () => {
   window.clearTimeout(refreshTimer);
   cancelAnimationFrame(frameId);
+  musicWasPlaying = isBgMusicPlaying();
   stopBgMusic();
   combatScene.dispose();
+  sceneDisposed = true;
+});
+
+// Browsers can restore this page from the back/forward cache after pagehide
+// already tore the WebGL context down. There is no way to rebuild the scene
+// in place, and progress lives in localStorage, so a reload is the only clean
+// recovery. (A non-persisted pageshow is a fresh load: nothing to do.)
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted && sceneDisposed) window.location.reload();
+});
+
+// Don't let the soundtrack keep playing in a hidden tab; resume it only if it
+// was audible before hiding (and the scene is still alive).
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    musicWasPlaying = isBgMusicPlaying();
+    stopBgMusic();
+  } else if (musicWasPlaying && !sceneDisposed) {
+    startBgMusic();
+    musicWasPlaying = false;
+  }
 });
 
 resize();
