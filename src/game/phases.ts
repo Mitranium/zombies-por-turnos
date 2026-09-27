@@ -326,11 +326,27 @@ export function cancelCombatAction(state: GameState): void {
   emit(state);
 }
 
+export type SpecialBlockReason = 'charge' | 'no-wounded-allies';
+
+/**
+ * Why `unit` cannot use its special right now, or null when it can. Triage is
+ * the only selfless special: with the whole squad at full health it would burn
+ * the charge and the turn for nothing, so it is blocked until someone is hurt.
+ */
+export function specialBlockReason(combat: CombatState, unit: Unit): SpecialBlockReason | null {
+  if (unit.basicAttacks < SPECIAL_CHARGE_REQUIRED) return 'charge';
+  if (unit.role === 'medic') {
+    const wounded = combat.playerUnits.some((ally) => ally.alive && ally.hp < ally.maxHp);
+    if (!wounded) return 'no-wounded-allies';
+  }
+  return null;
+}
+
 export function selectCombatAction(state: GameState, action: 'attack' | 'special'): void {
   if (!state.combat || combatScene?.animating) return;
   const current = getCurrentCombatUnit(state.combat);
   if (!current || !isPlayerUnit(current, state.combat)) return;
-  if (action === 'special' && current.basicAttacks < SPECIAL_CHARGE_REQUIRED) {
+  if (action === 'special' && specialBlockReason(state.combat, current) !== null) {
     playSfx('locked');
     return;
   }

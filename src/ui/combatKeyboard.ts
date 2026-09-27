@@ -1,9 +1,9 @@
 import type { GameState } from '../game/types';
 import {
-  SPECIAL_CHARGE_REQUIRED,
   cancelCombatAction,
   selectCombatAction,
   selectCombatTarget,
+  specialBlockReason,
 } from '../game/phases';
 import type { CombatScene } from '../combat/CombatScene';
 import { playSfx, unlockAudio } from '../audio/sfx';
@@ -96,7 +96,7 @@ export class CombatKeyboardController {
     unlockAudio();
 
     if (!combat.selectedAction) {
-      const specialReady = current.basicAttacks >= SPECIAL_CHARGE_REQUIRED;
+      const specialBlocked = specialBlockReason(combat, current) !== null;
 
       if (key === 'prev') {
         this.actionIndex = 0;
@@ -112,7 +112,7 @@ export class CombatKeyboardController {
       }
       if (key === 'confirm') {
         const action = this.actionIndex === 0 ? 'attack' : 'special';
-        if (action === 'special' && !specialReady) {
+        if (action === 'special' && specialBlocked) {
           playSfx('locked');
           return true;
         }

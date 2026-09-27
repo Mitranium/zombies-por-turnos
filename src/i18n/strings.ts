@@ -20,6 +20,7 @@ const STRINGS: StringTable = {
   'btn.special': { en: 'Special', es: 'Especial' },
   'btn.cancel': { en: 'Cancel', es: 'Cancelar' },
   'combat.special.ready': { en: 'READY', es: 'LISTA' },
+  'combat.special.noWounds': { en: 'NO WOUNDED ALLIES', es: 'SIN HERIDOS' },
   'combat.special.readyAlert': { en: 'ULTIMATE READY!', es: '¡ULTI LISTA!' },
   'combat.special.basic': { en: 'BASICS', es: 'BÁSICOS' },
   'lang.en': { en: 'English', es: 'Inglés' },

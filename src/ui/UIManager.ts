@@ -16,6 +16,7 @@ import {
   selectCombatAction,
   selectCombatTarget,
   selectDeploymentUnit,
+  specialBlockReason,
   SPECIAL_CHARGE_REQUIRED,
   setLanguage,
   startGame,
@@ -445,10 +446,13 @@ export class UIManager {
       const actions = this.el('div', 'combat-actions');
       const attackInfo = getActionCard(current.role, 'attack', state.lang);
       const specialInfo = getActionCard(current.role, 'special', state.lang);
-      const specialReady = current.basicAttacks >= SPECIAL_CHARGE_REQUIRED;
+      const specialBlock = specialBlockReason(combat, current);
+      const specialReady = specialBlock === null;
       const chargeLabel = specialReady
         ? t('combat.special.ready', state.lang)
-        : `🔒 ${current.basicAttacks}/${SPECIAL_CHARGE_REQUIRED} ${t('combat.special.basic', state.lang)}`;
+        : specialBlock === 'no-wounded-allies'
+          ? t('combat.special.noWounds', state.lang)
+          : `🔒 ${current.basicAttacks}/${SPECIAL_CHARGE_REQUIRED} ${t('combat.special.basic', state.lang)}`;
       if (specialReady) {
         const readyBanner = this.el('div', 'special-ready-banner');
         readyBanner.append(
