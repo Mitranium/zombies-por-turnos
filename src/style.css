@@ -570,6 +570,10 @@ html, body, #app {
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
 }
 
+.dice-damage.crit {
+  color: var(--gold);
+}
+
 .combat-dice-stage.rolling-mode .dice-damage {
   color: var(--dim);
   font-size: 0.85rem;

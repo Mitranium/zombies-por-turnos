@@ -10,14 +10,15 @@ export interface ActiveCombatAnim {
   targetId: string;
   elapsed: number;
   duration: number;
+  crit: boolean;
 }
 
-export function createHitAnim(attackerId: string, targetId: string): ActiveCombatAnim {
-  return { type: 'hit', attackerId, targetId, elapsed: 0, duration: 0.42 };
+export function createHitAnim(attackerId: string, targetId: string, crit = false): ActiveCombatAnim {
+  return { type: 'hit', attackerId, targetId, elapsed: 0, duration: 0.42, crit };
 }
 
 export function createHealAnim(healerId: string): ActiveCombatAnim {
-  return { type: 'heal', attackerId: healerId, targetId: healerId, elapsed: 0, duration: 0.4 };
+  return { type: 'heal', attackerId: healerId, targetId: healerId, elapsed: 0, duration: 0.4, crit: false };
 }
 
 export function easeOutQuad(t: number): number {
@@ -141,12 +142,12 @@ export interface Popup {
   baseScale: number;
 }
 
-export function spawnComicBurst(scene: THREE.Scene, pos: THREE.Vector3, lang: Lang): Popup {
+export function spawnComicBurst(scene: THREE.Scene, pos: THREE.Vector3, lang: Lang, crit = false): Popup {
   void lang;
-  const word = BURST_WORDS[Math.floor(Math.random() * BURST_WORDS.length)];
+  const word = crit ? 'CRIT!' : BURST_WORDS[Math.floor(Math.random() * BURST_WORDS.length)];
   const tex = makeBurstTexture(word);
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
-  const baseScale = 1.5;
+  const baseScale = crit ? 1.9 : 1.5;
   sprite.scale.set(0.05, 0.03, 1);
   sprite.position.copy(pos);
   sprite.renderOrder = 25;

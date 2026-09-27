@@ -48,13 +48,14 @@ import {
 
 export type GameListener = (state: GameState) => void;
 
-type HitAnimAction = { type: 'hit' | 'heal'; attackerId: string; targetId: string };
+type HitAnimAction = { type: 'hit' | 'heal'; attackerId: string; targetId: string; crit?: boolean };
 type CounterAnimAction = {
   type: 'counter';
   attackerId: string;
   targetId: string;
   counterAttackerId: string;
   counterTargetId: string;
+  crit?: boolean;
 };
 type AnimAction = HitAnimAction | CounterAnimAction | null;
 
@@ -102,13 +103,13 @@ function queueAnim(state: GameState, action: AnimAction, then: () => void): void
   }
   if (action.type === 'counter') {
     scene.playHit(action.attackerId, action.targetId, () => {
-      resolveCounterattack(state, action.counterAttackerId, action.counterTargetId);
+      const counterCrit = resolveCounterattack(state, action.counterAttackerId, action.counterTargetId);
       scene.playHit(action.counterAttackerId, action.counterTargetId, () => {
         emit(state);
         then();
-      });
+      }, counterCrit);
       emit(state);
-    });
+    }, action.crit);
     emit(state);
     return;
   }
@@ -117,7 +118,7 @@ function queueAnim(state: GameState, action: AnimAction, then: () => void): void
     then();
   };
   if (action.type === 'heal') scene.playHeal(action.attackerId, done);
-  else scene.playHit(action.attackerId, action.targetId, done);
+  else scene.playHit(action.attackerId, action.targetId, done, action.crit);
   emit(state);
 }
 
@@ -356,7 +357,7 @@ function recordDiceRoll(
   result: SkillResult,
 ): void {
   if (result.diceRoll && result.damage !== undefined) {
-    combat.lastRoll = { attackerId, targetId, roll: result.diceRoll, damage: result.damage };
+    combat.lastRoll = { attackerId, targetId, roll: result.diceRoll, damage: result.damage, crit: result.crit };
     playSfx('dice');
   }
 }
@@ -398,7 +399,7 @@ export function selectCombatTarget(state: GameState, targetId: string): void {
     pushSkillLog(combat, result, current, target);
     playSfx('hit');
     clearSelection(combat);
-    queueAnim(state, { type: 'hit', attackerId: current.id, targetId: target.id }, () => finishCombatTurn(state));
+    queueAnim(state, { type: 'hit', attackerId: current.id, targetId: target.id, crit: result.crit }, () => finishCombatTurn(state));
     return;
   }
 
@@ -422,7 +423,7 @@ export function selectCombatTarget(state: GameState, targetId: string): void {
   pushSkillLog(combat, result, current, target);
   playSfx('special');
   clearSelection(combat);
-  queueAnim(state, { type: 'hit', attackerId: current.id, targetId: target.id }, () => finishCombatTurn(state));
+  queueAnim(state, { type: 'hit', attackerId: current.id, targetId: target.id, crit: result.crit }, () => finishCombatTurn(state));
 }
 
 function clearSelection(combat: CombatState): void {
@@ -508,9 +509,10 @@ function runEnemyTurn(state: GameState, unit: Unit): AnimAction {
       targetId: target.id,
       counterAttackerId: target.id,
       counterTargetId: unit.id,
+      crit: result.crit,
     };
   }
-  return { type: 'hit', attackerId: unit.id, targetId: target.id };
+  return { type: 'hit', attackerId: unit.id, targetId: target.id, crit: result.crit };
 }
 
 function canCounterattack(state: GameState, target: Unit): boolean {
@@ -519,11 +521,12 @@ function canCounterattack(state: GameState, target: Unit): boolean {
     && state.profile.levels.athlete >= COUNTERATTACK_ATHLETE_LEVEL;
 }
 
-function resolveCounterattack(state: GameState, athleteId: string, zombieId: string): void {
-  if (!state.combat) return;
+/** Resolves the athlete's counterattack; returns whether it was a critical. */
+function resolveCounterattack(state: GameState, athleteId: string, zombieId: string): boolean {
+  if (!state.combat) return false;
   const athlete = state.combat.playerUnits.find((unit) => unit.id === athleteId);
   const zombie = state.combat.enemyUnits.find((unit) => unit.id === zombieId);
-  if (!athlete?.alive || !zombie?.alive) return;
+  if (!athlete?.alive || !zombie?.alive) return false;
 
   const wasAlive = zombie.alive;
   const result = performAttack(athlete, zombie);
@@ -532,6 +535,7 @@ function resolveCounterattack(state: GameState, athleteId: string, zombieId: str
   pushSkillLog(state.combat, result, athlete, zombie);
   playSfx('hit');
   if (!zombie.alive) playSfx('death');
+  return result.crit ?? false;
 }
 
 function finishCombatTurn(state: GameState): void {

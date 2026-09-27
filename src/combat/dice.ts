@@ -51,6 +51,11 @@ export function rollDice(config: DiceConfig): DiceRoll {
   return { rolls, total, sides: config.sides, bonus: config.bonus };
 }
 
+/** A critical hit: every die landed on its highest face. */
+export function isCritRoll(roll: DiceRollResult): boolean {
+  return roll.rolls.length > 0 && roll.rolls.every((value) => value === roll.sides);
+}
+
 export function diceLabel(config: DiceConfig): string {
   const base = config.count > 1 ? `${config.count}d${config.sides}` : `d${config.sides}`;
   return config.bonus > 0 ? `${base}+${config.bonus}` : base;

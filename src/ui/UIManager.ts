@@ -412,6 +412,7 @@ export class UIManager {
       list.appendChild(card);
     }
     panel.appendChild(list);
+    panel.appendChild(this.el('p', 'panel-body wiki-crit-note', t('wiki.crit', state.lang)));
     panel.appendChild(this.btn(t('wiki.back', state.lang), () => { closeWikiMenu(state); }, 'btn btn-go'));
     screen.appendChild(panel);
     this.root.appendChild(screen);
@@ -457,7 +458,7 @@ export class UIManager {
 
     if (combat.lastRoll) {
       const r = combat.lastRoll;
-      this.diceDisplay.syncRoll(rollEventKey(r), r.roll, r.damage, state.lang);
+      this.diceDisplay.syncRoll(rollEventKey(r), r.roll, r.damage, state.lang, r.crit);
     } else if (isPlayerTurn && !this.diceDisplay.isBusy()) {
       const previewDice = combat.selectedAction === 'special'
         ? getActionCard(current.role, 'special', state.lang).dice ?? t('dice.heal', state.lang)

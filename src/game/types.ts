@@ -55,7 +55,7 @@ export interface CombatState {
   turnIndex: number;
   log: CombatLogEntry[];
   selectedAction: 'attack' | 'special' | null;
-  lastRoll: { attackerId: string; targetId: string; roll: DiceRollResult; damage: number } | null;
+  lastRoll: { attackerId: string; targetId: string; roll: DiceRollResult; damage: number; crit?: boolean } | null;
 }
 
 /**
@@ -91,6 +91,7 @@ export interface SkillResult {
   damage?: number;
   heal?: number;
   selfDamage?: number;
+  crit?: boolean;
   diceRoll?: DiceRollResult;
   logKey: string;
   logParams?: Record<string, string | number>;
