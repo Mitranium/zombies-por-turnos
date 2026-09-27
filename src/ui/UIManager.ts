@@ -26,6 +26,8 @@ import { canLevelUp, ENEMY_ROLES, getLevelBonuses, levelUpCost, MAX_LEVEL, PLAYE
 import { getBaseUnitStats } from '../game/state';
 import { attackDiceLabel } from './combatActions';
 import { playSfx, unlockAudio } from '../audio/sfx';
+import { isMuted, setMuted } from '../audio/settings';
+import { syncMusicMute } from '../audio/music';
 import { CombatKeyboardController, type CombatKey } from './combatKeyboard';
 
 export class UIManager {
@@ -44,6 +46,9 @@ export class UIManager {
     onStateChange: (s: GameState) => void,
     combatScene?: CombatScene,
   ): void {
+    // Keep the document language in sync with the UI copy so screen readers
+    // pronounce English strings as English and Spanish as Spanish.
+    document.documentElement.lang = state.lang;
     this.root.innerHTML = '';
 
     switch (state.phase) {
@@ -137,6 +142,22 @@ export class UIManager {
       }
     }
 
+    if (key === 'cancel') {
+      // Escape mirrors the Back button while a menu screen is open.
+      if (state.phase === 'squad') {
+        closeSquadMenu(state);
+        playSfx('click');
+        onStateChange(state);
+        return true;
+      }
+      if (state.phase === 'wiki') {
+        closeWikiMenu(state);
+        playSfx('click');
+        onStateChange(state);
+        return true;
+      }
+    }
+
     return this.keyboard.handle(key, state, combatScene, onStateChange);
   }
 
@@ -192,6 +213,23 @@ export class UIManager {
     return b;
   }
 
+  private audioToggle(state: GameState, onStateChange: (s: GameState) => void): HTMLButtonElement {
+    const muted = isMuted();
+    const b = this.el('button', 'btn chip title-audio-toggle') as HTMLButtonElement;
+    b.type = 'button';
+    b.setAttribute('aria-pressed', String(muted));
+    b.setAttribute('aria-label', t(muted ? 'audio.unmute' : 'audio.mute', state.lang));
+    b.textContent = muted ? '🔇' : '🔊';
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setMuted(!muted);
+      syncMusicMute();
+      playSfx('click');
+      onStateChange(state);
+    });
+    return b;
+  }
+
   private renderTitle(state: GameState, onStateChange: (s: GameState) => void): void {
     const screen = this.el('div', 'title-screen');
     screen.appendChild(this.el('div', 'title-vignette'));
@@ -209,7 +247,9 @@ export class UIManager {
       this.btn('EN', () => { setLanguage(state, 'en'); onStateChange(state); }, state.lang === 'en' ? 'btn chip active' : 'btn chip'),
       this.btn('ES', () => { setLanguage(state, 'es'); onStateChange(state); }, state.lang === 'es' ? 'btn chip active' : 'btn chip'),
     );
-    topbar.appendChild(lang);
+    const controls = this.el('div', 'title-controls');
+    controls.append(lang, this.audioToggle(state, onStateChange));
+    topbar.appendChild(controls);
     screen.appendChild(topbar);
 
     const hero = this.el('div', 'title-hero');

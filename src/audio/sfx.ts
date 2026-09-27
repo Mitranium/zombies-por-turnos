@@ -1,3 +1,5 @@
+import { isMuted } from './settings';
+
 type SfxType =
   | 'click'
   | 'hit'
@@ -75,6 +77,7 @@ function noise(duration: number, gain = 0.04, cutoff = 900, delay = 0): void {
 }
 
 export function playSfx(type: SfxType): void {
+  if (isMuted()) return;
   switch (type) {
     case 'click':
       tone(440, 0.05, 'triangle', 0.05);

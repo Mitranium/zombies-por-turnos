@@ -193,6 +193,12 @@ html, body, #app {
   margin-bottom: 0;
 }
 
+.title-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 .title-hero {
   display: flex;
   flex-direction: column;
@@ -460,11 +466,14 @@ html, body, #app {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 0.4rem;
+  max-width: min(94vw, 720px);
   padding: 0.4rem 0.6rem;
   background: rgba(10, 8, 14, 0.72);
   border: 2px solid var(--ink);
-  border-radius: 999px;
+  border-radius: 16px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
   pointer-events: none;
   z-index: 4;
@@ -501,6 +510,25 @@ html, body, #app {
 
 .turn-chip-glyph {
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7));
+}
+
+/* Narrow screens: shrink the initiative chips so a full wave still fits in
+   one or two rows above the dice stage. */
+@media (max-width: 600px) {
+  .turn-order {
+    gap: 0.3rem;
+    padding: 0.3rem 0.45rem;
+  }
+
+  .turn-chip {
+    width: 26px;
+    height: 26px;
+    font-size: 0.8rem;
+  }
+
+  .combat-dice-stage {
+    top: 6rem;
+  }
 }
 
 .combat-dice-stage {

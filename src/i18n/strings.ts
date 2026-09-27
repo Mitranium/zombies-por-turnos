@@ -25,6 +25,8 @@ const STRINGS: StringTable = {
   'combat.special.basic': { en: 'BASICS', es: 'BÁSICOS' },
   'lang.en': { en: 'English', es: 'Inglés' },
   'lang.es': { en: 'Español', es: 'Español' },
+  'audio.mute': { en: 'Mute sound', es: 'Silenciar sonido' },
+  'audio.unmute': { en: 'Unmute sound', es: 'Activar sonido' },
 
   'squad.player': { en: 'Your Squad', es: 'Tu escuadrón' },
 
