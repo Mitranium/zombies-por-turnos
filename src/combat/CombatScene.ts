@@ -678,12 +678,23 @@ export class CombatScene {
       this.removeVisual(id, vis);
     }
     if (this.deploymentHighlight) this.deploymentHighlight.visible = false;
+    this.clearDice();
+  }
+
+  /**
+   * The dice belong to a roll that already resolved: drop them as soon as the
+   * combat leaves the screen instead of leaving them frozen in the camera view.
+   */
+  private clearDice(): void {
+    this.diceRig.clear();
+    this.lastRollKey = '';
   }
 
   syncTitlePreview(units: Unit[], lang: Lang): void {
     this.lastLang = lang;
     this.hexGridGroup.visible = true;
     if (this.deploymentHighlight) this.deploymentHighlight.visible = false;
+    this.clearDice();
 
     const keepIds = new Set(units.map((unit) => unit.id));
     for (const [id, vis] of this.unitVisuals) {
@@ -773,6 +784,10 @@ export class CombatScene {
         const colorHex = attacker ? ROLE_THEME[attacker.role]?.hex ?? 0xd8d8d8 : 0xd8d8d8;
         this.diceRig.roll(combat.lastRoll.roll, colorHex);
       }
+    } else {
+      // No roll in flight: forget the last key so an identical future roll
+      // (same attacker, target and faces) animates again instead of being skipped.
+      this.lastRollKey = '';
     }
   }
 
