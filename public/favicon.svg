@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Zombies por Turnos">
+  <rect width="64" height="64" rx="12" fill="#0b0e0c" />
+  <path d="M32 6 54 19v26L32 58 10 45V19z" fill="#3f5f33" stroke="#100d0a" stroke-width="3" stroke-linejoin="round" />
+  <path d="M32 6 54 19v26L32 58 10 45V19z" fill="none" stroke="#7c9a6a" stroke-width="1.5" stroke-linejoin="round" opacity="0.5" />
+  <circle cx="24" cy="30" r="5" fill="#d8e030" />
+  <circle cx="40" cy="30" r="5" fill="#d8e030" />
+  <path d="M22 43h20" stroke="#100d0a" stroke-width="5" stroke-linecap="round" />
+  <path d="M26 43v-4M32 43v-5M38 43v-4" stroke="#100d0a" stroke-width="3" stroke-linecap="round" />
+</svg>
