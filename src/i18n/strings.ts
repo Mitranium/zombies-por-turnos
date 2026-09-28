@@ -173,7 +173,6 @@ const STRINGS = {
     en: '{attacker} patches up the squad (+{amount} HP each)',
     es: '{attacker} hace triaje al escuadrón (+{amount} PV a cada uno)',
   },
-  'log.heal': { en: '{attacker} heals {target} for {amount}', es: '{attacker} cura a {target} por {amount}' },
   'log.summon': { en: 'A shambler joins the fight!', es: '¡Un tambaleante se une a la pelea!' },
   'log.self': { en: '{attacker} takes {amount} recoil', es: '{attacker} recibe {amount} de retroceso' },
   'log.xp': { en: '+{amount} XP', es: '+{amount} XP' },

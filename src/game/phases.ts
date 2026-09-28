@@ -83,6 +83,8 @@ function pushLog(combat: CombatState, key: string, params?: Record<string, LogPa
   const entry: CombatLogEntry = { key };
   if (params) entry.params = params;
   combat.log.push(entry);
+  // Bound the log: only its last few lines are ever rendered.
+  if (combat.log.length > 60) combat.log.shift();
 }
 
 function pushSkillLog(combat: CombatState, result: SkillResult, actor: Unit, target?: Unit): void {
@@ -161,8 +163,8 @@ export function levelUpCharacter(state: GameState, role: PlayerRole): void {
   emit(state);
 }
 
-function tryAwardKillXp(state: GameState, enemy: Unit, wasAlive: boolean): void {
-  if (!wasAlive || enemy.alive || !isEnemyRole(enemy.role) || !state.combat) return;
+function tryAwardKillXp(state: GameState, enemy: Unit): void {
+  if (enemy.alive || !isEnemyRole(enemy.role) || !state.combat) return;
   const gained = awardKillXp(state.profile, enemy.role);
   if (gained <= 0) return;
   state.runXpGained += gained;
@@ -417,9 +419,8 @@ export function selectCombatTarget(state: GameState, targetId: string): void {
   if (combat.selectedAction === 'attack') {
     const target = enemies.find((enemy) => enemy.id === targetId);
     if (!target) return;
-    const wasAlive = target.alive;
     const result = performAttack(current, target);
-    tryAwardKillXp(state, target, wasAlive);
+    tryAwardKillXp(state, target);
     current.basicAttacks = Math.min(SPECIAL_CHARGE_REQUIRED, current.basicAttacks + 1);
     recordDiceRoll(combat, current.id, target.id, result);
     pushSkillLog(combat, result, current, target);
@@ -441,9 +442,8 @@ export function selectCombatTarget(state: GameState, targetId: string): void {
 
   const target = enemies.find((enemy) => enemy.id === targetId);
   if (!target) return;
-  const wasAlive = target.alive;
   const result = performSpecial(current, target);
-  tryAwardKillXp(state, target, wasAlive);
+  tryAwardKillXp(state, target);
   current.basicAttacks = 0;
   recordDiceRoll(combat, current.id, target.id, result);
   pushSkillLog(combat, result, current, target);
@@ -554,11 +554,11 @@ function resolveCounterattack(state: GameState, athleteId: string, zombieId: str
   const zombie = state.combat.enemyUnits.find((unit) => unit.id === zombieId);
   if (!athlete?.alive || !zombie?.alive) return false;
 
-  const wasAlive = zombie.alive;
   const result = performAttack(athlete, zombie);
   recordDiceRoll(state.combat, athlete.id, zombie.id, result);
-  tryAwardKillXp(state, zombie, wasAlive);
-  pushSkillLog(state.combat, result, athlete, zombie);
+  tryAwardKillXp(state, zombie);
+  // The counter line is more specific than the generic hit/crit log key.
+  pushSkillLog(state.combat, { ...result, logKey: 'log.counter' }, athlete, zombie);
   playSfx('hit');
   if (!zombie.alive) playSfx('death');
   return result.crit ?? false;
