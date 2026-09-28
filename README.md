@@ -54,7 +54,7 @@ Este repo también funciona como banco de pruebas: distintos modelos de IA gener
 | PR | Modelo | Puntaje | Veredicto | Estado |
 | --- | --- | --- | --- | --- |
 | [#1](https://github.com/Mitranium/zombies-por-turnos/pull/1) | MiMo-V2.6-Pro | 96/100 | 🟢 Aprobar | Mergeado |
-| [#2](https://github.com/Mitranium/zombies-por-turnos/pull/2) | DeepSeek-V4.1-Flash | 85/100 | 🟢 Aprobar | Abierto |
+| [#2](https://github.com/Mitranium/zombies-por-turnos/pull/2) | DeepSeek-V4.1-Flash | 85/100 | 🟢 Aprobar | Cerrado |
 | [#3](https://github.com/Mitranium/zombies-por-turnos/pull/3) | GLM-5.3-Max | 96/100 | 🟢 Aprobar | Mergeado |
 
 ## Licencia
