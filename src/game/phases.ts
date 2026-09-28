@@ -261,6 +261,10 @@ export function confirmDeployment(state: GameState): void {
 const SCREAMER_CELL = { col: 1, row: 2 };
 const FRONT_CELL = { col: 1, row: 0 };
 
+function waveCount(round: number): number {
+  return Math.min(round + 1, WAVE_MAX_COUNT);
+}
+
 function waveRole(round: number, index: number, count: number): UnitRole {
   if (round === 1) return 'shambler';
   if (round >= WAVE_RIPPER_FROM_ROUND && index === count - 1) return 'ripper';
@@ -269,8 +273,30 @@ function waveRole(round: number, index: number, count: number): UnitRole {
   return 'shambler';
 }
 
+export interface WaveIntelEntry {
+  role: UnitRole;
+  count: number;
+}
+
+/**
+ * Wave composition for a round, grouped in spawn order. Derived from the same
+ * waveRole/waveCount rules buildWave uses, so the intel shown during
+ * deployment can never drift from the real wave.
+ */
+export function getWaveIntel(round: number): WaveIntelEntry[] {
+  const count = waveCount(round);
+  const entries: WaveIntelEntry[] = [];
+  for (let index = 0; index < count; index++) {
+    const role = waveRole(round, index, count);
+    const last = entries[entries.length - 1];
+    if (last && last.role === role) last.count += 1;
+    else entries.push({ role, count: 1 });
+  }
+  return entries;
+}
+
 function buildWave(round: number): Unit[] {
-  const count = Math.min(round + 1, WAVE_MAX_COUNT);
+  const count = waveCount(round);
   const tier = waveTier(round);
   const squadId = `wave_${round}`;
 

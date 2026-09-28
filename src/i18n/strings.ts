@@ -50,6 +50,11 @@ const STRINGS = {
     es: 'Elegí un personaje y tocá un hexágono. Los zombis atacan al más cercano en el campo. Enter para empezar.',
   },
   'deployment.confirm': { en: 'Start round', es: 'Iniciar ronda' },
+  'deployment.incoming': { en: 'Incoming wave', es: 'Oleada entrante' },
+  'deployment.tierLine': {
+    en: 'Reinforced: up to +{hp}% HP · +{spd} SPD',
+    es: 'Reforzada: hasta +{hp}% PV · +{spd} VEL',
+  },
 
   'xp.label': { en: 'XP', es: 'XP' },
   'xp.runGained': { en: 'XP this run', es: 'XP en esta partida' },

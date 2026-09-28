@@ -2,7 +2,7 @@ import type { CombatLogEntry, GameState, Lang, Unit } from '../game/types';
 import { getPlayerSquad } from '../game/state';
 import { getActionCard, ROLE_THEME } from './combatActions';
 import { rollEventKey } from '../combat/dice';
-import { SCREAMER_SUMMON_CHANCE, SPECIAL_CHARGE_REQUIRED } from '../game/balance';
+import { SCREAMER_SUMMON_CHANCE, SPECIAL_CHARGE_REQUIRED, WAVE_HEALTH_PER_TIER, WAVE_SPEED_PER_TIER, waveTier } from '../game/balance';
 import { CombatDiceDisplay } from './CombatDiceDisplay';
 import type { CombatScene } from '../combat/CombatScene';
 import { t } from '../i18n/strings';
@@ -12,6 +12,7 @@ import {
   cancelCombatAction,
   confirmDeployment,
   getPlayerTurnUnit,
+  getWaveIntel,
   levelUpCharacter,
   openSquadMenu,
   openWikiMenu,
@@ -84,6 +85,19 @@ export class UIManager {
     }
 
     this.restoreFocus(focusKey);
+    this.focusDefaultCombatAction(state);
+  }
+
+  /**
+   * After enemy turns the previously focused control is gone: land the
+   * keyboard back on the primary action so Enter is always meaningful.
+   */
+  private focusDefaultCombatAction(state: GameState): void {
+    if (state.phase !== 'combat' || !state.combat) return;
+    if (state.combat.selectedAction) return;
+    if (!getPlayerTurnUnit(state.combat)) return;
+    if (this.root.contains(document.activeElement)) return;
+    this.root.querySelector<HTMLElement>('[data-focus-key="action:attack"]')?.focus();
   }
 
   private captureFocusKey(): string | null {
@@ -464,7 +478,11 @@ export class UIManager {
         ? getActionCard(current.role, 'special', state.lang).dice ?? t('dice.heal', state.lang)
         : getActionCard(current.role, 'attack', state.lang).dice ?? t('dice.unknown', state.lang);
       this.diceDisplay.setPreview(previewDice, state.lang);
-    } else {
+    } else if (!this.diceDisplay.isBusy()) {
+      // A busy overlay is mid-roll or still holding a fresh result: the 3D
+      // dice settle slightly before the text does, so hiding here would freeze
+      // the text on "Rolling…" and the player would never see the result.
+      // Let its own timer (tick) retire it instead.
       this.diceDisplay.hide();
     }
 
@@ -527,10 +545,12 @@ export class UIManager {
 
     const log = this.el('div', 'combat-log');
     log.setAttribute('aria-live', 'polite');
-    log.textContent = combat.log
-      .slice(-LOG_VISIBLE_LINES)
-      .map((entry) => this.formatLogEntry(entry, state.lang))
-      .join(' · ');
+    const lines = combat.log.slice(-LOG_VISIBLE_LINES);
+    for (let i = 0; i < lines.length; i++) {
+      const line = this.el('div', `combat-log-line${i === lines.length - 1 ? ' latest' : ''}`);
+      line.textContent = this.formatLogEntry(lines[i], state.lang);
+      log.appendChild(line);
+    }
     bar.appendChild(log);
 
     this.root.appendChild(bar);
@@ -547,6 +567,7 @@ export class UIManager {
     top.appendChild(this.el('span', 'deployment-title', t('deployment.title', state.lang)));
     top.appendChild(this.el('span', 'deployment-hint', t('deployment.hint', state.lang)));
     bar.appendChild(top);
+    bar.appendChild(this.buildWaveIntel(state));
 
     const roster = this.el('div', 'deployment-roster');
     for (const unit of deployment.units) {
@@ -580,6 +601,31 @@ export class UIManager {
     );
 
     this.root.appendChild(bar);
+  }
+
+  /** Intel panel: the exact composition of the wave about to spawn. */
+  private buildWaveIntel(state: GameState): HTMLElement {
+    const intel = this.el('div', 'deployment-intel');
+    intel.appendChild(this.el('span', 'deployment-intel-label', t('deployment.incoming', state.lang)));
+    const chips = this.el('div', 'deployment-intel-chips');
+    for (const entry of getWaveIntel(state.phaseNumber)) {
+      const theme = ROLE_THEME[entry.role];
+      const chip = this.el('span', 'deployment-intel-chip');
+      chip.style.setProperty('--role-color', theme.css);
+      chip.appendChild(this.glyph('deployment-intel-glyph', theme.glyph));
+      chip.appendChild(this.el('span', 'deployment-intel-count', `${entry.count}×`));
+      chip.appendChild(this.el('span', 'deployment-intel-name', t(`unit.${entry.role}`, state.lang)));
+      chips.appendChild(chip);
+    }
+    intel.appendChild(chips);
+    const tier = waveTier(state.phaseNumber);
+    if (tier > 0) {
+      intel.appendChild(this.el('span', 'deployment-intel-tier', t('deployment.tierLine', state.lang, {
+        hp: Math.round(WAVE_HEALTH_PER_TIER * tier * 100),
+        spd: WAVE_SPEED_PER_TIER * tier,
+      })));
+    }
+    return intel;
   }
 
   private renderRoundBreak(state: GameState): void {
