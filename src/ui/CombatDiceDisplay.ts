@@ -16,6 +16,7 @@ export class CombatDiceDisplay {
   private rollKey = '';
   private targetRoll: DiceRollResult | null = null;
   private damage = 0;
+  private crit = false;
   private rollTimer = 0;
   private resultTimer = 0;
   private settleAt = 0;
@@ -44,6 +45,8 @@ export class CombatDiceDisplay {
   hide(): void {
     this.phase = 'hidden';
     this.rollKey = '';
+    this.crit = false;
+    this.damageEl.classList.remove('crit');
     this.el.classList.add('hidden');
     this.el.classList.remove('preview-mode', 'rolling-mode', 'result');
   }
@@ -62,11 +65,12 @@ export class CombatDiceDisplay {
     `;
   }
 
-  startRoll(key: string, roll: DiceRollResult, damage: number, lang: Lang): void {
+  startRoll(key: string, roll: DiceRollResult, damage: number, lang: Lang, crit = false): void {
     if (key === this.rollKey && this.phase === 'result') return;
     this.rollKey = key;
     this.targetRoll = roll;
     this.damage = damage;
+    this.crit = crit;
     this.phase = 'rolling';
     this.rollTimer = 0;
     this.resultTimer = 0;
@@ -77,6 +81,7 @@ export class CombatDiceDisplay {
     this.previewEl.style.display = 'none';
     this.totalEl.style.display = 'none';
     this.damageEl.style.display = 'block';
+    this.damageEl.classList.toggle('crit', crit);
     this.damageEl.textContent = t('combat.dice.rolling', lang);
   }
 
@@ -95,7 +100,9 @@ export class CombatDiceDisplay {
         this.totalEl.textContent = this.targetRoll.rolls.length > 1 || this.targetRoll.bonus > 0
           ? `${breakdown} = ${this.targetRoll.total}`
           : `= ${this.targetRoll.total}`;
-        this.damageEl.textContent = `${this.damage} ${t('combat.dice.damage', lang)}`;
+        this.damageEl.textContent = this.crit
+          ? `${this.damage} ${t('combat.dice.damage', lang)} · ${t('dice.crit', lang)}`
+          : `${this.damage} ${t('combat.dice.damage', lang)}`;
         this.resultTimer = 0;
       }
       return;
@@ -107,8 +114,8 @@ export class CombatDiceDisplay {
     }
   }
 
-  syncRoll(key: string, roll: DiceRollResult, damage: number, lang: Lang): void {
-    if (key !== this.rollKey) this.startRoll(key, roll, damage, lang);
+  syncRoll(key: string, roll: DiceRollResult, damage: number, lang: Lang, crit = false): void {
+    if (key !== this.rollKey) this.startRoll(key, roll, damage, lang, crit);
   }
 
   isBusy(): boolean {

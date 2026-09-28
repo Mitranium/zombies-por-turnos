@@ -48,13 +48,14 @@ import {
 
 export type GameListener = (state: GameState) => void;
 
-type HitAnimAction = { type: 'hit' | 'heal'; attackerId: string; targetId: string };
+type HitAnimAction = { type: 'hit' | 'heal'; attackerId: string; targetId: string; crit?: boolean };
 type CounterAnimAction = {
   type: 'counter';
   attackerId: string;
   targetId: string;
   counterAttackerId: string;
   counterTargetId: string;
+  crit?: boolean;
 };
 type AnimAction = HitAnimAction | CounterAnimAction | null;
 
@@ -82,6 +83,8 @@ function pushLog(combat: CombatState, key: string, params?: Record<string, LogPa
   const entry: CombatLogEntry = { key };
   if (params) entry.params = params;
   combat.log.push(entry);
+  // Bound the log: only its last few lines are ever rendered.
+  if (combat.log.length > 60) combat.log.shift();
 }
 
 function pushSkillLog(combat: CombatState, result: SkillResult, actor: Unit, target?: Unit): void {
@@ -102,13 +105,13 @@ function queueAnim(state: GameState, action: AnimAction, then: () => void): void
   }
   if (action.type === 'counter') {
     scene.playHit(action.attackerId, action.targetId, () => {
-      resolveCounterattack(state, action.counterAttackerId, action.counterTargetId);
+      const counterCrit = resolveCounterattack(state, action.counterAttackerId, action.counterTargetId);
       scene.playHit(action.counterAttackerId, action.counterTargetId, () => {
         emit(state);
         then();
-      });
+      }, counterCrit);
       emit(state);
-    });
+    }, action.crit);
     emit(state);
     return;
   }
@@ -117,7 +120,7 @@ function queueAnim(state: GameState, action: AnimAction, then: () => void): void
     then();
   };
   if (action.type === 'heal') scene.playHeal(action.attackerId, done);
-  else scene.playHit(action.attackerId, action.targetId, done);
+  else scene.playHit(action.attackerId, action.targetId, done, action.crit);
   emit(state);
 }
 
@@ -160,8 +163,8 @@ export function levelUpCharacter(state: GameState, role: PlayerRole): void {
   emit(state);
 }
 
-function tryAwardKillXp(state: GameState, enemy: Unit, wasAlive: boolean): void {
-  if (!wasAlive || enemy.alive || !isEnemyRole(enemy.role) || !state.combat) return;
+function tryAwardKillXp(state: GameState, enemy: Unit): void {
+  if (enemy.alive || !isEnemyRole(enemy.role) || !state.combat) return;
   const gained = awardKillXp(state.profile, enemy.role);
   if (gained <= 0) return;
   state.runXpGained += gained;
@@ -260,6 +263,10 @@ export function confirmDeployment(state: GameState): void {
 const SCREAMER_CELL = { col: 1, row: 2 };
 const FRONT_CELL = { col: 1, row: 0 };
 
+function waveCount(round: number): number {
+  return Math.min(round + 1, WAVE_MAX_COUNT);
+}
+
 function waveRole(round: number, index: number, count: number): UnitRole {
   if (round === 1) return 'shambler';
   if (round >= WAVE_RIPPER_FROM_ROUND && index === count - 1) return 'ripper';
@@ -268,8 +275,30 @@ function waveRole(round: number, index: number, count: number): UnitRole {
   return 'shambler';
 }
 
+export interface WaveIntelEntry {
+  role: UnitRole;
+  count: number;
+}
+
+/**
+ * Wave composition for a round, grouped in spawn order. Derived from the same
+ * waveRole/waveCount rules buildWave uses, so the intel shown during
+ * deployment can never drift from the real wave.
+ */
+export function getWaveIntel(round: number): WaveIntelEntry[] {
+  const count = waveCount(round);
+  const entries: WaveIntelEntry[] = [];
+  for (let index = 0; index < count; index++) {
+    const role = waveRole(round, index, count);
+    const last = entries[entries.length - 1];
+    if (last && last.role === role) last.count += 1;
+    else entries.push({ role, count: 1 });
+  }
+  return entries;
+}
+
 function buildWave(round: number): Unit[] {
-  const count = Math.min(round + 1, WAVE_MAX_COUNT);
+  const count = waveCount(round);
   const tier = waveTier(round);
   const squadId = `wave_${round}`;
 
@@ -356,7 +385,7 @@ function recordDiceRoll(
   result: SkillResult,
 ): void {
   if (result.diceRoll && result.damage !== undefined) {
-    combat.lastRoll = { attackerId, targetId, roll: result.diceRoll, damage: result.damage };
+    combat.lastRoll = { attackerId, targetId, roll: result.diceRoll, damage: result.damage, crit: result.crit };
     playSfx('dice');
   }
 }
@@ -390,15 +419,14 @@ export function selectCombatTarget(state: GameState, targetId: string): void {
   if (combat.selectedAction === 'attack') {
     const target = enemies.find((enemy) => enemy.id === targetId);
     if (!target) return;
-    const wasAlive = target.alive;
     const result = performAttack(current, target);
-    tryAwardKillXp(state, target, wasAlive);
+    tryAwardKillXp(state, target);
     current.basicAttacks = Math.min(SPECIAL_CHARGE_REQUIRED, current.basicAttacks + 1);
     recordDiceRoll(combat, current.id, target.id, result);
     pushSkillLog(combat, result, current, target);
     playSfx('hit');
     clearSelection(combat);
-    queueAnim(state, { type: 'hit', attackerId: current.id, targetId: target.id }, () => finishCombatTurn(state));
+    queueAnim(state, { type: 'hit', attackerId: current.id, targetId: target.id, crit: result.crit }, () => finishCombatTurn(state));
     return;
   }
 
@@ -414,15 +442,14 @@ export function selectCombatTarget(state: GameState, targetId: string): void {
 
   const target = enemies.find((enemy) => enemy.id === targetId);
   if (!target) return;
-  const wasAlive = target.alive;
   const result = performSpecial(current, target);
-  tryAwardKillXp(state, target, wasAlive);
+  tryAwardKillXp(state, target);
   current.basicAttacks = 0;
   recordDiceRoll(combat, current.id, target.id, result);
   pushSkillLog(combat, result, current, target);
   playSfx('special');
   clearSelection(combat);
-  queueAnim(state, { type: 'hit', attackerId: current.id, targetId: target.id }, () => finishCombatTurn(state));
+  queueAnim(state, { type: 'hit', attackerId: current.id, targetId: target.id, crit: result.crit }, () => finishCombatTurn(state));
 }
 
 function clearSelection(combat: CombatState): void {
@@ -508,9 +535,10 @@ function runEnemyTurn(state: GameState, unit: Unit): AnimAction {
       targetId: target.id,
       counterAttackerId: target.id,
       counterTargetId: unit.id,
+      crit: result.crit,
     };
   }
-  return { type: 'hit', attackerId: unit.id, targetId: target.id };
+  return { type: 'hit', attackerId: unit.id, targetId: target.id, crit: result.crit };
 }
 
 function canCounterattack(state: GameState, target: Unit): boolean {
@@ -519,19 +547,21 @@ function canCounterattack(state: GameState, target: Unit): boolean {
     && state.profile.levels.athlete >= COUNTERATTACK_ATHLETE_LEVEL;
 }
 
-function resolveCounterattack(state: GameState, athleteId: string, zombieId: string): void {
-  if (!state.combat) return;
+/** Resolves the athlete's counterattack; returns whether it was a critical. */
+function resolveCounterattack(state: GameState, athleteId: string, zombieId: string): boolean {
+  if (!state.combat) return false;
   const athlete = state.combat.playerUnits.find((unit) => unit.id === athleteId);
   const zombie = state.combat.enemyUnits.find((unit) => unit.id === zombieId);
-  if (!athlete?.alive || !zombie?.alive) return;
+  if (!athlete?.alive || !zombie?.alive) return false;
 
-  const wasAlive = zombie.alive;
   const result = performAttack(athlete, zombie);
   recordDiceRoll(state.combat, athlete.id, zombie.id, result);
-  tryAwardKillXp(state, zombie, wasAlive);
-  pushSkillLog(state.combat, result, athlete, zombie);
+  tryAwardKillXp(state, zombie);
+  // The counter line is more specific than the generic hit/crit log key.
+  pushSkillLog(state.combat, { ...result, logKey: 'log.counter' }, athlete, zombie);
   playSfx('hit');
   if (!zombie.alive) playSfx('death');
+  return result.crit ?? false;
 }
 
 function finishCombatTurn(state: GameState): void {

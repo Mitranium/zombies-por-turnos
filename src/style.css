@@ -570,6 +570,10 @@ html, body, #app {
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
 }
 
+.dice-damage.crit {
+  color: var(--gold);
+}
+
 .combat-dice-stage.rolling-mode .dice-damage {
   color: var(--dim);
   font-size: 0.85rem;
@@ -696,6 +700,63 @@ html, body, #app {
 .deployment-confirm {
   display: block;
   margin: 0 auto;
+}
+
+.deployment-intel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+  margin-bottom: 0.85rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(20, 12, 12, 0.55);
+  border: 1px solid rgba(240, 136, 136, 0.35);
+  border-radius: 6px;
+}
+
+.deployment-intel-label {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #f08888;
+}
+
+.deployment-intel-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.deployment-intel-chip {
+  --role-color: #888;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.22rem 0.5rem;
+  background: #16130f;
+  border: 1px solid var(--role-color);
+  border-radius: 4px;
+  color: var(--pulp-cream);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.deployment-intel-glyph {
+  font-size: 0.9rem;
+}
+
+.deployment-intel-count {
+  color: var(--gold);
+  font-weight: 900;
+}
+
+.deployment-intel-tier {
+  flex: 1 1 100%;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  color: #d8a0a0;
 }
 
 .xp-badge {
@@ -1044,6 +1105,12 @@ html, body, #app {
   font-family: var(--mono);
   padding-top: 0.15rem;
   border-top: 1px solid rgba(42, 50, 44, 0.6);
+  line-height: 1.5;
+}
+
+.combat-log-line.latest {
+  color: var(--pulp-cream);
+  font-weight: 700;
 }
 
 .landmark-tooltip {

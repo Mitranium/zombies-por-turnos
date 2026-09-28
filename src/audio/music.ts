@@ -21,3 +21,8 @@ export function stopBgMusic(): void {
   if (!music) return;
   music.pause();
 }
+
+/** Whether the soundtrack is currently audible (used to pause/resume on tab hide). */
+export function isBgMusicPlaying(): boolean {
+  return music !== null && !music.paused;
+}

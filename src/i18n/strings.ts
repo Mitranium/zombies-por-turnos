@@ -50,6 +50,11 @@ const STRINGS = {
     es: 'Elegí un personaje y tocá un hexágono. Los zombis atacan al más cercano en el campo. Enter para empezar.',
   },
   'deployment.confirm': { en: 'Start round', es: 'Iniciar ronda' },
+  'deployment.incoming': { en: 'Incoming wave', es: 'Oleada entrante' },
+  'deployment.tierLine': {
+    en: 'Reinforced: up to +{hp}% HP · +{spd} SPD',
+    es: 'Reforzada: hasta +{hp}% PV · +{spd} VEL',
+  },
 
   'xp.label': { en: 'XP', es: 'XP' },
   'xp.runGained': { en: 'XP this run', es: 'XP en esta partida' },
@@ -85,6 +90,10 @@ const STRINGS = {
     en: 'Very fast. Prefers back-row targets and hits hard. Usually the last enemy from round 3 onward.',
     es: 'Muy rápido. Prefiere objetivos en la retaguardia y pega fuerte. Suele ser el último enemigo desde la ronda 3.',
   },
+  'wiki.crit': {
+    en: 'Critical hits: when every die lands on its highest face, the dice total counts twice — for zombies and survivors alike.',
+    es: 'Golpes críticos: si todos los dados caen en su cara máxima, el total de los dados cuenta el doble — para zombis y supervivientes por igual.',
+  },
 
   'combat.playerTurn': { en: 'Your turn', es: 'Tu turno' },
   'combat.enemyTurn': { en: 'Enemy turn', es: 'Turno enemigo' },
@@ -103,6 +112,7 @@ const STRINGS = {
   'combat.dice.damage': { en: 'DMG', es: 'DAÑO' },
   'dice.heal': { en: '+HP', es: '+PV' },
   'dice.unknown': { en: '?', es: '?' },
+  'dice.crit': { en: 'CRIT!', es: '¡CRIT!' },
   'title.levelShort': { en: 'Lv.{level}', es: 'Niv.{level}' },
   'squad.levelLine': {
     en: '{level}/{max} · +{hp} HP · +{spd} SPD',
@@ -143,9 +153,17 @@ const STRINGS = {
 
   'log.roundStart': { en: 'Round {round}: {count} zombies', es: 'Ronda {round}: {count} zombis' },
   'log.hit': { en: '{attacker} hits {target} for {amount}', es: '{attacker} golpea a {target} por {amount}' },
+  'log.crit': {
+    en: '{attacker} CRITS {target} for {amount}!',
+    es: '¡{attacker} CRITICA a {target} por {amount}!',
+  },
   'log.special': {
     en: '{attacker} unleashes a special on {target} for {amount}',
     es: '{attacker} desata un especial contra {target} por {amount}',
+  },
+  'log.specialCrit': {
+    en: '{attacker} unleashes a CRITICAL special on {target} for {amount}!',
+    es: '¡{attacker} desata un especial CRÍTICO contra {target} por {amount}!',
   },
   'log.counter': {
     en: '{attacker} counters {target} for {amount}',
@@ -155,7 +173,6 @@ const STRINGS = {
     en: '{attacker} patches up the squad (+{amount} HP each)',
     es: '{attacker} hace triaje al escuadrón (+{amount} PV a cada uno)',
   },
-  'log.heal': { en: '{attacker} heals {target} for {amount}', es: '{attacker} cura a {target} por {amount}' },
   'log.summon': { en: 'A shambler joins the fight!', es: '¡Un tambaleante se une a la pelea!' },
   'log.self': { en: '{attacker} takes {amount} recoil', es: '{attacker} recibe {amount} de retroceso' },
   'log.xp': { en: '+{amount} XP', es: '+{amount} XP' },

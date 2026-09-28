@@ -472,8 +472,8 @@ export class CombatScene {
     this.idleWaiters.push(callback);
   }
 
-  playHit(attackerId: string, targetId: string, onComplete: () => void): void {
-    this.enqueueAnim(createHitAnim(attackerId, targetId), onComplete);
+  playHit(attackerId: string, targetId: string, onComplete: () => void, crit = false): void {
+    this.enqueueAnim(createHitAnim(attackerId, targetId, crit), onComplete);
   }
 
   playHeal(healerId: string, onComplete: () => void): void {
@@ -498,15 +498,15 @@ export class CombatScene {
     const atk = this.unitVisuals.get(anim.attackerId);
     const tgt = this.unitVisuals.get(anim.targetId);
     if (anim.type === 'hit') {
-      this.shakeIntensity = REDUCED_MOTION ? 0 : 0.12;
-      this.punchIntensity = REDUCED_MOTION ? 0 : 1;
+      this.shakeIntensity = REDUCED_MOTION ? 0 : (anim.crit ? 0.22 : 0.12);
+      this.punchIntensity = REDUCED_MOTION ? 0 : (anim.crit ? 1.4 : 1);
       if (atk && tgt) {
         const mid = atk.basePos.clone().lerp(tgt.basePos, 0.5);
         mid.y = 1;
         this.particles.push(...spawnHitParticles(this.scene, mid));
         const burstPos = tgt.basePos.clone();
         burstPos.y = 1.5;
-        this.popups.push(spawnComicBurst(this.scene, burstPos, this.lastLang));
+        this.popups.push(spawnComicBurst(this.scene, burstPos, this.lastLang, anim.crit));
       }
     } else if (atk) {
       const pos = atk.basePos.clone();

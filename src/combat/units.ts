@@ -4,7 +4,7 @@ import {
   RECKLESS_SELF_DAMAGE,
   TRIAGE_HEAL_AMOUNT,
 } from '../game/balance';
-import { getDiceConfig, rollDice } from './dice';
+import { getDiceConfig, isCritRoll, rollDice } from './dice';
 import { combatDistance, prefersBackTargets } from './hexGrid';
 
 export function performAttack(
@@ -15,13 +15,17 @@ export function performAttack(
   const config = getDiceConfig(attacker.role, special);
   const rolled = rollDice(config);
 
-  const damage = Math.max(1, rolled.total);
+  // All-max dice double the roll: a critical hit, for zombies and survivors
+  // alike (see the wiki note).
+  const crit = isCritRoll(rolled);
+  const damage = Math.max(1, crit ? rolled.total * 2 : rolled.total);
   target.hp = Math.max(0, target.hp - damage);
   if (target.hp <= 0) target.alive = false;
 
   return {
     damage,
-    logKey: 'log.hit',
+    crit,
+    logKey: crit ? 'log.crit' : 'log.hit',
     logParams: { amount: damage },
     diceRoll: rolled,
   };
@@ -33,12 +37,13 @@ export function performAttack(
  */
 export function performSpecial(attacker: Unit, target: Unit): SkillResult {
   const result = performAttack(attacker, target, true);
+  const logKey = result.crit ? 'log.specialCrit' : 'log.special';
   if (attacker.role === 'criminal') {
     attacker.hp = Math.max(0, attacker.hp - RECKLESS_SELF_DAMAGE);
     if (attacker.hp <= 0) attacker.alive = false;
-    return { ...result, selfDamage: RECKLESS_SELF_DAMAGE, logKey: 'log.special' };
+    return { ...result, selfDamage: RECKLESS_SELF_DAMAGE, logKey };
   }
-  return { ...result, logKey: 'log.special' };
+  return { ...result, logKey };
 }
 
 export function triageHeal(allies: Unit[]): SkillResult {
